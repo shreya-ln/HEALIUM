@@ -46,7 +46,7 @@ def transcribe_with_whisper(file_bytes: bytes, filename: str) -> str:
     We set `audio.name` so Whisper knows the format by extension.
     """
     audio = io.BytesIO(file_bytes)
-    audio.name = filename  # e.g. "test.m4a" or "recording.wav"
+    audio.name = filename
     resp = client.audio.transcriptions.create(
         model="whisper-1",
         file=audio,
