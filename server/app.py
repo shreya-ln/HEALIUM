@@ -518,6 +518,28 @@ def upload_question_audio():
         "audioUrl":   public_url
     }), 200
 
+@app.route("/upload-question-audio-for-chat", methods=["POST"])
+def upload_question_audio_for_chat():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "no file uploaded"}), 400
+
+    # 1) Transcribe with Whisper
+    f.stream.seek(0)
+    raw = f.read()
+    try:
+        transcript = transcribe_with_whisper(raw, f.filename)
+    except Exception as e:
+        return jsonify({"error": f"Transcription failed: {e}"}), 500
+
+    return jsonify({"transcript": transcript}), 200
+
+
+
 # ─── 5. Get Past Visits (limit 10) ─────────────────────────────────────────────
 @app.route("/get-past-visits", methods=["GET"])
 def get_past_visits():
