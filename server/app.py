@@ -624,6 +624,14 @@ def get_visit(visit_id):
 
     # 3) Return the visit record
     visit = resp.data
+    audio_url = visit.get('visitsummaryaudio')
+    if audio_url:
+        audio_url = audio_url.lstrip('/') 
+        audio_url = supabase.storage.from_(
+            os.getenv("SUPABASE_AUDIO_BUCKET", "audio-uploads")
+        ).get_public_url(audio_url)
+        audio_url = audio_url.split('?', 1)[0]
+    print("Public: ", audio_url)
     return jsonify({
         'visit_id':             visit['id'],
         'patient_id':           visit['patient_id'],
@@ -635,7 +643,7 @@ def get_visit(visit_id):
         'sugar_level':          visit.get('sugarlevel'),
         'weight':               visit.get('weight'),
         'height':               visit.get('height'),
-        'audio_summary_url':    visit.get('visitsummaryaudio'),
+        'audio_summary_url':    audio_url,
         'doctor_recommendation': visit.get('doctorrecommendation')
     }), 200
 

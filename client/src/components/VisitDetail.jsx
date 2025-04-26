@@ -1,11 +1,14 @@
 // src/pages/VisitDetail.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import {
-  Box, Typography, CircularProgress, Button, Card, CardContent, Divider
+  Box, Typography, CircularProgress, Button, Card,
+  CardContent, Divider, IconButton
 } from '@mui/material';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import PauseIcon    from '@mui/icons-material/Pause';
 
 export default function VisitDetail() {
   const { visitId } = useParams();
@@ -16,17 +19,40 @@ export default function VisitDetail() {
   const [visit, setVisit]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
+  const audioRef             = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     if (!token) return;
-
-    axios.get(`/visit/${visitId}`, {
-      headers: { Authorization: token }
-    })
-    .then(res => setVisit(res.data))
-    .catch(() => setError('Could not load visit details'))
-    .finally(() => setLoading(false));
+    axios.get(`/visit/${visitId}`, { headers: { Authorization: token } })
+      .then(res => setVisit(res.data))
+      .catch(() => setError('Could not load visit details'))
+      .finally(() => setLoading(false));
   }, [visitId, token]);
+
+  useEffect(() => {
+    if (visit?.audio_summary_url && audioRef.current) {
+      audioRef.current.load();
+    }
+  }, [visit?.audio_summary_url]);
+
+  const handlePlayPause = () => {
+    if (!audioRef.current) return;
+    const audio = audioRef.current;
+    audioRef.current.crossOrigin = 'anonymous';
+
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play()
+        .then(() => setIsPlaying(true))
+        .catch(err => {
+          console.error('Audio playback failed:', err);
+          // optionally show a message to the user here
+        });
+    }
+  };
 
   if (loading) return (
     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
@@ -54,20 +80,32 @@ export default function VisitDetail() {
           <Typography><strong>Blood Pressure:</strong> {visit.blood_pressure}</Typography>
           <Typography><strong>Oxygen Level:</strong> {visit.oxygen_level}</Typography>
           <Typography><strong>Sugar Level:</strong> {visit.sugar_level}</Typography>
-          <Typography><strong>Weight:</strong> {visit.weight} || 0 kg</Typography>
-          <Typography><strong>Height:</strong> {visit.height} || 0 cm</Typography>
+          <Typography><strong>Weight:</strong> {visit.weight} kg</Typography>
+          <Typography><strong>Height:</strong> {visit.height} cm</Typography>
 
           {visit.audio_summary_url && (
-            <Box sx={{ mt: 2 }}>
+            <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
               <Typography><strong>Audio Summary:</strong></Typography>
-              <audio controls src={visit.audio_summary_url} style={{ width: '100%' }} />
+              <IconButton
+                onClick={handlePlayPause}
+                sx={{ ml: 1 }}
+              >
+                {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+              </IconButton>
+              <audio
+                 ref={audioRef}
+                 crossOrigin="anonymous"
+                 src={visit.audio_summary_url}
+                 onEnded={() => setIsPlaying(false)}
+                 style={{ display: 'none' }}
+              />
             </Box>
           )}
 
           {visit.doctor_recommendation && (
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle1" gutterBottom>
-                Doctor’s Recommendation
+                Doctor's Recommendation
               </Typography>
               <Typography>{visit.doctor_recommendation}</Typography>
             </Box>

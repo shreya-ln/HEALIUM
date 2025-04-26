@@ -194,9 +194,19 @@ export default function PatientDashboard() {
                   <List disablePadding>
                     {upcomingVisits.map(v => (
                       <ListItemButton
-                        key={v.visit_id}
-                        onClick={() => navigate(`/visit/${v.visit_id}`)}
-                      >
+                          key={v.visit_id}
+                          onClick={() => navigate(`/visit/${v.visit_id}`)}
+                          sx={{
+                            mb: 1,
+                            borderRadius: 1,
+                            bgcolor: 'grey.50',                
+                            color: 'text.primary',
+                            '&:hover': {
+                              bgcolor: 'primary.light',        
+                              color: 'primary.contrastText',  
+                            }
+                          }}
+                        >
                         <ListItemText
                           primary={`${new Date(v.date).toLocaleDateString()} — ${v.summary}`}
                           sx={{ pl: 1 }}
