@@ -14,7 +14,6 @@ import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -41,16 +40,31 @@ export default function PatientDashboard() {
   const token = user?.user_id;
   const navigate = useNavigate();
 
-  const [data, setData] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [recentVisits, setRecentVisits] = useState([]);
+  const [upcomingVisits, setUpcomingVisits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!token) return;
-    axios.get('/dashboard-data', { headers: { Authorization: token } })
-      .then(res => setData(res.data))
-      .catch(err => setError('Failed to load dashboard'))
-      .finally(() => setLoading(false));
+    (async () => {
+      try {
+        const [dashRes, visitsRes, upcomingRes] = await Promise.all([
+          axios.get('/dashboard-data', { headers: { Authorization: token }}),
+          axios.get('/get-past-visits', { headers: { Authorization: token }}),
+          axios.get('/upcoming-visits', { headers: { Authorization: token }})
+        ]);
+        setDashboardData(dashRes.data);
+        setRecentVisits(visitsRes.data);
+        setUpcomingVisits(upcomingRes.data);
+      } catch (err) {
+        console.error(err);
+        setError('Failed to load dashboard');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [token]);
 
   if (loading) {
@@ -61,7 +75,7 @@ export default function PatientDashboard() {
     );
   }
 
-  if (error || !data) {
+  if (error || !dashboardData) {
     return (
       <Box sx={{ p: 4 }}>
         <Typography color="error">{error || 'No data available'}</Typography>
@@ -71,9 +85,14 @@ export default function PatientDashboard() {
 
   const {
     medications,
-    visits: recentVisits = [],
     health_trends: { blood_pressure, oxygen_level, sugar_level }
-  } = data;
+  } = dashboardData;
+
+  // Map blood pressure strings "120/80" to numbers
+  const bloodPressureData = blood_pressure.map(bp => {
+    const [systolic, diastolic] = bp.value.split('/').map(Number);
+    return { date: bp.date, systolic, diastolic };
+  });
 
   const menuItems = [
     { text: 'Profile', icon: <PersonIcon />, action: () => navigate('/profile') },
@@ -81,7 +100,6 @@ export default function PatientDashboard() {
   ];
 
   const trendConfigs = [
-    { title: 'Blood Pressure', series: blood_pressure },
     { title: 'Oxygen Level', series: oxygen_level },
     { title: 'Sugar Level', series: sugar_level }
   ];
@@ -121,6 +139,20 @@ export default function PatientDashboard() {
       <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
         <Toolbar />
         <Grid container spacing={3}>
+          {/* Ask AI Card */}
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="h6" gutterBottom>
+                  Chat with AI
+                </Typography>
+                <Button variant="contained" onClick={() => navigate('/ask-ai')}>
+                  Open Chat
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+
           {/* Medications Card */}
           <Grid item xs={12} md={4}>
             <Card>
@@ -149,9 +181,46 @@ export default function PatientDashboard() {
             </Card>
           </Grid>
 
-          {/* Trend Charts */}
+          {/* Upcoming Visits Card */}
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>Upcoming Visits</Typography>
+                {upcomingVisits.length === 0
+                  ? <Typography>No upcoming visits</Typography>
+                  : upcomingVisits.map(v => (
+                      <Typography key={v.visit_id}>• {v.date} — {v.summary}</Typography>
+                    ))}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Blood Pressure Trend Chart */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>Blood Pressure Trend</Typography>
+                {bloodPressureData.length === 0
+                  ? <Typography>No data</Typography>
+                  : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={bloodPressureData} margin={{ top: 5, right: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="systolic" stroke="#1976d2" dot={false} name="Systolic" />
+                        <Line type="monotone" dataKey="diastolic" stroke="#dc004e" dot={false} name="Diastolic" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Other Trend Charts */}
           {trendConfigs.map(({ title, series }) => (
-            <Grid item xs={12} md={4} key={title}>
+            <Grid item xs={12} md={6} key={title}>
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>{title} Trend</Typography>
