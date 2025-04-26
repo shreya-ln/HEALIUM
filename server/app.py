@@ -644,16 +644,43 @@ def get_visit(visit_id):
     if not resp.data:
         abort(404, description="Visit not found")
 
-    # 3) Return the visit record
     visit = resp.data
+
+    # 2) Resolve public audio URL if present
     audio_url = visit.get('visitsummaryaudio')
     if audio_url:
-        audio_url = audio_url.lstrip('/') 
-        audio_url = supabase.storage.from_(
-            os.getenv("SUPABASE_AUDIO_BUCKET", "audio-uploads")
-        ).get_public_url(audio_url)
-        audio_url = audio_url.split('?', 1)[0]
-    print("Public: ", audio_url)
+        audio_path = audio_url.lstrip('/')
+        audio_url = (
+            supabase
+            .storage
+            .from_(os.getenv("SUPABASE_AUDIO_BUCKET", "audio-uploads"))
+            .get_public_url(audio_path)
+            .split('?', 1)[0]
+        )
+
+    # 3) Fetch all questions this patient has asked
+    q_resp = (
+        supabase
+        .table('questions')
+        .select('id, questiontext, status, questionaudio')
+        .eq('patient_id', visit['patient_id'])
+        .order('daterecorded', desc=True)
+        .execute()
+    )
+    if not q_resp.data:
+        abort(500, description="Error fetching questions")
+    questions = q_resp.data or []
+    questions_list = [
+        {
+            'id': f"q{q['id']}",
+            'transcript': q['questiontext'],
+            'status': q['status'],
+            'audioUrl': q['questionaudio']
+        }
+        for q in questions
+    ]
+
+    # 4) Return combined payload
     return jsonify({
         'visit_id':             visit['id'],
         'patient_id':           visit['patient_id'],
@@ -666,7 +693,8 @@ def get_visit(visit_id):
         'weight':               visit.get('weight'),
         'height':               visit.get('height'),
         'audio_summary_url':    audio_url,
-        'doctor_recommendation': visit.get('doctorrecommendation')
+        'doctor_recommendation': visit.get('doctorrecommendation'),
+        'questions':            questions_list
     }), 200
 
 app.register_blueprint(chat_routes)

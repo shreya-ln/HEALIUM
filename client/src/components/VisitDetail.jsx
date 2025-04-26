@@ -58,18 +58,25 @@ export default function VisitDetail() {
     return types.find(m => MediaRecorder.isTypeSupported(m) && audio.canPlayType(m)) || '';
   };
 
+  // Fetch visit details and existing questions
   useEffect(() => {
     if (!token) return;
     axios.get(`/visit/${visitId}`, { headers: { Authorization: token } })
-      .then(res => setVisit(res.data))
+      .then(res => {
+        setVisit(res.data);
+        // assume API returns questions array
+        setQuestions(res.data.questions || []);
+      })
       .catch(() => setError('Could not load visit details'))
       .finally(() => setLoading(false));
   }, [visitId, token]);
 
+  // Reload summary audio when URL changes
   useEffect(() => {
     if (visit?.audio_summary_url && audioRef.current) audioRef.current.load();
   }, [visit?.audio_summary_url]);
 
+  // Play / pause the visit's summary
   const handlePlayPause = () => {
     if (!audioRef.current) return;
     const audio = audioRef.current;
@@ -82,6 +89,7 @@ export default function VisitDetail() {
     }
   };
 
+  // Start recording
   const startRecording = async () => {
     setRecordError('');
     const mimeType = getSupportedAudioMime();
@@ -103,6 +111,7 @@ export default function VisitDetail() {
     }
   };
 
+  // Stop recording
   const stopRecording = () => {
     if (!mediaRecorderRef.current) return;
     mediaRecorderRef.current.stop();
@@ -110,6 +119,7 @@ export default function VisitDetail() {
     setIsRecording(false);
   };
 
+  // Once recording stops: upload to backend
   const onRecordingStop = async (mimeType) => {
     const blob = new Blob(audioChunksRef.current, { type: mimeType });
     const ext = mimeType.split('/')[1].split(';')[0];
@@ -148,7 +158,7 @@ export default function VisitDetail() {
         <Chip label={`Date: ${new Date(visit.visit_date).toLocaleDateString()}`} color="secondary" />
 
         <Paper elevation={3} sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>Summary</Typography>
+          <Typography variant="h6" gutterBottom>Visit Summary</Typography>
           <Typography>{visit.summary}</Typography>
         </Paper>
 
@@ -208,7 +218,7 @@ export default function VisitDetail() {
         )}
 
         <Paper elevation={3} sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>Ask a Question</Typography>
+          <Typography variant="h6" gutterBottom>Ask a Question to the Doctor!</Typography>
           <Stack direction="row" spacing={2} alignItems="center">
             <IconButton
               color={isRecording ? 'error' : 'primary'}
@@ -221,6 +231,13 @@ export default function VisitDetail() {
           </Stack>
           {recordError && <Alert severity="error" sx={{ mt: 2 }}>{recordError}</Alert>}
         </Paper>
+
+        {/* Reminder before questions list */}
+        {questions.length > 0 && (
+          <Typography variant="subtitle1" sx={{ mt: 2, fontStyle: 'italic' }}>
+            Don't forget to follow-up on these questions!
+          </Typography>
+        )}
 
         {questions.map((q, i) => (
           <Accordion key={i} elevation={1}>
