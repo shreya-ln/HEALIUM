@@ -426,9 +426,9 @@ def get_questions():
     qs = (
         supabase
         .table("questions")
-        .select("*")
-        .eq("patientid", user_id)
-        .neq("doctorresponse", "Answered")        # only unanswered
+        .select("questiontext")
+        .eq("patient_id", user_id)
+        .neq("status", "Answered")        # only unanswered
         .order("daterecorded", desc=True)
         .execute()
     ).data or []
@@ -459,7 +459,7 @@ def ask_ai():
 
     # Save to questions table
     supabase.table("questions").insert({
-        "patientid":      user_id,
+        "patient_id":      user_id,
         "questiontext":   question,
         "doctorresponse": answer,
         "status":         "answered",
@@ -492,7 +492,7 @@ def upload_question_audio():
 
     # Insert as active question
     supabase.table("questions").insert({
-        "patientid":    user_id,
+        "patient_id":    user_id,
         "questiontext": text,
         "questionaudio": filename,
         "status":       "Not",
@@ -512,7 +512,7 @@ def get_past_visits():
         supabase
         .table("visits")
         .select("*")
-        .eq("patientid", user_id)
+        .eq("patient_id", user_id)
         .order("visitdate", desc=True)
         .limit(10)                        # <— only grab the latest 10
         .execute()
@@ -545,7 +545,7 @@ def upload_ocr_report():
 
     # Save into reports
     supabase.table("reports").insert({
-        "patientid":    user_id,
+        "patient_id":    user_id,
         "reportcontent": text,
         "reporttype":   ext.lstrip("."),
         "reportdate":   datetime.utcnow().date().isoformat()
