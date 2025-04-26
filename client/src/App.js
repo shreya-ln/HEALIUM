@@ -7,6 +7,7 @@ import Dashboard from './components/Dashboard';
 import PatientDashboard from './components/PatientDashboard';
 import DoctorDashboard from './components/DoctorDashboard';
 import { useEffect } from 'react';
+import ChatPage from './components/ChatPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -44,6 +45,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/ask-ai" element={<ChatPage />} />
           <Route path="*" element={<Navigate to="/signup" />} />
         </Routes>
       </Router>
