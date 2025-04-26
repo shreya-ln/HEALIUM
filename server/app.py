@@ -11,6 +11,7 @@ import pytesseract
 from dotenv import load_dotenv
 from flask_cors import CORS
 from datetime import datetime
+from chat_routes import chat_routes  # <-- import
 
 load_dotenv()
 
@@ -144,7 +145,7 @@ def pending_questions_for_doctor():
     visits_resp = (
         supabase
         .table('visits')
-        .select('patientid')
+        .select('patient_id')
         .eq('doctorid', user_id)
         .execute()
     )
@@ -552,6 +553,12 @@ def upload_ocr_report():
     }).execute()
 
     return jsonify({"extracted_text": text})
+
+## chatbot
+
+app.register_blueprint(chat_routes)
+
+
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 4000))

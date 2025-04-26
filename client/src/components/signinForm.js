@@ -21,15 +21,20 @@ function SigninForm() {
     setError('');
     setMessage('');
     try {
-      const res = await signin(form); // { message, user_id, role } 받아옴
+      const res = await signin(form); // { message, user_id, role }
 
-      // 1. Context에 저장 (AuthContext)
+
+      // 1. Contex (AuthContext)
       login({ user_id: res.user_id, role: res.role });
+      // ➡️ 2. LocalStorage
+    localStorage.setItem('user_id', res.user_id);
+    localStorage.setItem('role', res.role);
 
-      // 2. 성공 메시지 표시 (선택)
+
+      // 2.
       setMessage(res.message || 'Login success!');
 
-      // 3. role에 따라 리다이렉션
+      // 3. role redirection
       if (res.role === "patient") {
         navigate('/patient/dashboard');
       } else if (res.role === "doctor") {

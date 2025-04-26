@@ -6,12 +6,19 @@ import SigninForm from './components/signinForm';
 import Dashboard from './components/Dashboard';
 import PatientDashboard from './components/PatientDashboard';
 import DoctorDashboard from './components/DoctorDashboard';
+import { useEffect } from 'react';
+
 function ProtectedRoute({ children }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
   return user ? children : <Navigate to="/signin" />;
 }
-
 function App() {
+
   return (
     <AuthProvider>
       <Router>
