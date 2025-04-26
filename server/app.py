@@ -570,6 +570,42 @@ def upload_ocr_report():
 
     return jsonify({"extracted_text": text})
 
+@app.route('/upcoming-visits', methods=['GET'])
+def upcoming_visits():
+    # 1) Identify patient
+    patient_id = get_current_user()
+    if not patient_id:
+        abort(401, description="Unauthorized")
+
+    # 2) “Now” in ISO format for Postgres comparison
+    now_iso = datetime.utcnow().isoformat()
+
+    # 3) Query for visits after today
+    resp = (
+        supabase
+        .table('visits')
+        .select('id, doctor_id, visitdate, content')
+        .eq('patient_id', patient_id)
+        .gt('visitdate', now_iso)
+        .order('visitdate', desc=False)
+        .execute()
+    )
+
+    visits = resp.data or []
+
+    # 4) Format for client
+    upcoming = [
+        {
+            "visit_id":   v["id"],
+            "date":       v["visitdate"].split("T")[0],
+            "doctor_id":  v["doctor_id"],
+            "summary":    v.get("content", "")
+        }
+        for v in visits
+    ]
+
+    return jsonify(upcoming), 200
+
 app.register_blueprint(chat_routes)
 
 if __name__ == '__main__':
