@@ -3,8 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import SignupForm from './components/signupForm';
 import SigninForm from './components/signinForm';
-import Dashboard from './components/Dashboard'; // 우리가 새로 만들거야!
-
+import Dashboard from './components/Dashboard';
+import PatientDashboard from './components/PatientDashboard';
+import DoctorDashboard from './components/DoctorDashboard';
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
   return user ? children : <Navigate to="/signin" />;
@@ -17,6 +18,17 @@ function App() {
         <Routes>
           <Route path="/signup" element={<SignupForm />} />
           <Route path="/signin" element={<SigninForm />} />
+          <Route path="/patient/dashboard" element={
+            <ProtectedRoute>
+              <PatientDashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/doctor/dashboard" element={
+            <ProtectedRoute>
+              <DoctorDashboard />
+            </ProtectedRoute>
+          } />
           <Route
             path="/dashboard"
             element={

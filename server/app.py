@@ -1,3 +1,4 @@
+#server/app.py
 import os
 import io
 from flask import Flask, request, jsonify
@@ -8,7 +9,11 @@ from werkzeug.utils import secure_filename
 from PIL import Image
 import pytesseract
 from dotenv import load_dotenv
+from flask_cors import CORS
+from datetime import datetime
+
 load_dotenv()
+
 
 app = Flask(__name__)
 CORS(app)
@@ -20,9 +25,14 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_current_user():
-    return 1
+    user_id = request.headers.get('Authorization')
+    if not user_id:
+        return None
+    return user_id
 
-  
+
+# ---------- signup / signin API endpoints -------------- #
+
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.get_json()
@@ -62,18 +72,35 @@ def signin():
     password = data.get('password')
 
     try:
-        # Supabase login
         result = supabase.auth.sign_in_with_password({
             "email": email,
             "password": password
         })
 
-        return jsonify({"message": "Signin success!"}), 200
+        user_id = result.user.id
+
+        # Role check
+        patient = supabase.table('patients').select('id').eq('id', user_id).execute()
+        doctor = supabase.table('doctors').select('id').eq('id', user_id).execute()
+
+        if patient.data:
+            role = "patient"
+        elif doctor.data:
+            role = "doctor"
+        else:
+            role = "unknown"
+
+        return jsonify({
+            "message": "Signin success!",
+            "user_id": user_id,
+            "role": role
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
+# ------------------------ #
 @app.route('/api/health')
 def health():
     return jsonify(status='OK')
@@ -85,11 +112,66 @@ def get_patients():
 
 
 # ---------- Doctor API endpoints -------------- #
+#load doctors info
+@app.route('/doctor-profile', methods=['GET'])
+def doctor_profile():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    resp = (
+        supabase
+        .table('doctors')
+        .select('name, hospital, specialization')
+        .eq('id', user_id)
+        .single()
+        .execute()
+    )
+
+    if not resp.data:
+        return jsonify({"error": "Doctor profile not found"}), 404
+
+    return jsonify(resp.data), 200
+
+
+@app.route('/pending-questions-for-doctor', methods=['GET'])
+def pending_questions_for_doctor():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+
+    visits_resp = (
+        supabase
+        .table('visits')
+        .select('patientid')
+        .eq('doctorid', user_id)
+        .execute()
+    )
+
+    patient_ids = list({v['patientid'] for v in visits_resp.data}) if visits_resp.data else []
+
+    if not patient_ids:
+        return jsonify([]), 200
+
+    # pull unanswered questions
+    questions_resp = (
+        supabase
+        .table('questions')
+        .select('id, patientid, questiontext, daterecorded')
+        .in_('patientid', patient_ids)
+        .eq('status', 'Not')
+        .order('daterecorded', desc=True)
+        .execute()
+    )
+
+    questions = questions_resp.data or []
+    return jsonify(questions), 200
 # Fetch the list of patients
 @app.route('/list-patients', methods=['GET'])
 def list_patients():
     # 1) Get doctorId from query string
-    doctor_id = request.args.get('doctorId', type=int)
+    doctor_id = request.args.get('doctorId')
     if doctor_id is None:
         abort(400, description="Missing required query parameter: doctorId")
 
@@ -97,8 +179,8 @@ def list_patients():
     visits_resp = (
         supabase
         .table('visits')
-        .select('patientid, visitdate')
-        .eq('doctorid', doctor_id)
+        .select('patient_id, visitdate')
+        .eq('doctor_id', doctor_id)
         .execute()
     )
     visits = visits_resp.data
@@ -106,7 +188,7 @@ def list_patients():
     # 3) Compute the latest visit date per patient
     last_visits = {}
     for v in visits:
-        pid      = v['patientid']
+        pid      = v['patient_id']
         date_str = v['visitdate'].split('T')[0]
         if pid not in last_visits or date_str > last_visits[pid]:
             last_visits[pid] = date_str
@@ -138,7 +220,7 @@ def list_patients():
     return jsonify(result), 200
 
 # Fetch the patient profile
-@app.route('/patient-profile/<int:patient_id>', methods=['GET'])
+@app.route('/patient-profile/<patient_id>', methods=['GET'])
 def patient_profile(patient_id):
     # 1. Fetch patient_info
     patient_resp = (
@@ -158,7 +240,7 @@ def patient_profile(patient_id):
         supabase
         .table('visits')
         .select('visitdate, content, bloodpressure, oxygenlevel, sugarlevel')
-        .eq('patientid', patient_id)
+        .eq('patient_id', patient_id)
         .order('visitdate', desc=False)
         .execute()
     )
@@ -191,7 +273,7 @@ def patient_profile(patient_id):
         supabase
         .table('questions')
         .select('id, questiontext')
-        .eq('patientid', patient_id)
+        .eq('patient_id', patient_id)
         .eq('status', 'Not')
         .execute()
     )
@@ -233,8 +315,8 @@ def create_visit():
 
     # 2) Build insert payload (map your JSON keys to DB column names)
     new_visit = {
-        'patientid':             data['patient_id'],
-        'doctorid':              data['doctor_id'],
+        'patient_id':             data['patient_id'],
+        'doctor_id':              data['doctor_id'],
         'content':               data['content'],
         'bloodpressure':         data.get('blood_pressure'),
         'oxygenlevel':           data.get('oxygen_level'),
@@ -242,7 +324,7 @@ def create_visit():
         'weight':                data.get('weight'),
         'height':                data.get('height'),
         'visitsummaryaudio':     data.get('visit_summary_audio'),
-        'doctorrecommendations': data.get('doctor_recommendations'),
+        'doctorrecommendation': data.get('doctor_recommendation'),
         'visitdate':             data.get('visit_date') or datetime.utcnow().isoformat()
     }
 
@@ -259,47 +341,80 @@ def create_visit():
 
 # patient apis #
 # ─── 1. Dashboard Data ────────────────────────────────────────────────────────
-@app.route("/dashboard-data", methods=["GET"])
-def dashboard_data():
-    user_id = get_current_user()
-    if not user_id:
+@app.route("/dashboard-data/<patient_id>", methods=["GET"])
+def dashboard_data(patient_id):
+    if not patient_id:
         return jsonify({"error": "unauthorized"}), 401
 
     # a) Latest visit as health summary
-    visit = (
+    latest_resp = (
         supabase
         .table("visits")
-        .select("bloodpressure,oxygenlevel,sugarlevel,weight,height,doctorrecommendations,visitdate")
-        .eq("patientid", user_id)
+        .select("bloodpressure, oxygenlevel, sugarlevel, weight, height, doctorrecommendation, visitdate")
+        .eq("patient_id", patient_id)
         .order("visitdate", desc=True)
         .limit(1)
         .execute()
-    ).data or []
+    )
+    latest = latest_resp.data or []
 
-    # b) All medications
+    # b) Build full visit history for trends
+    visits_resp = (
+        supabase
+        .table("visits")
+        .select("visitdate, bloodpressure, oxygenlevel, sugarlevel")
+        .eq("patient_id", patient_id)
+        .order("visitdate", desc=False)
+        .execute()
+    )
+    visits = visits_resp.data or []
+
+    blood_pressure = []
+    oxygen_level  = []
+    sugar_level   = []
+    for v in visits:
+        date_str = v["visitdate"].split("T")[0]
+        if v.get("bloodpressure") is not None:
+            blood_pressure.append({"date": date_str, "value": v["bloodpressure"]})
+        if v.get("oxygenlevel") is not None:
+            oxygen_level.append({"date": date_str, "value": v["oxygenlevel"]})
+        if v.get("sugarlevel") is not None:
+            sugar_level.append({"date": date_str, "value": v["sugarlevel"]})
+
+    # c) All medications
     meds = (
         supabase
         .table("medications")
         .select("*")
-        .eq("patientid", user_id)
+        .eq("patient_id", patient_id)
         .execute()
     ).data or []
 
-    # c) Active questions
+    # d) Active (unanswered) questions
     active_qs = (
         supabase
         .table("questions")
-        .select("*")
-        .eq("patientid", user_id)
+        .select("id, questiontext")
+        .eq("patient_id", patient_id)
         .eq("status", "Not")
         .execute()
     ).data or []
+    # format questions as you like, e.g. prefixing id
+    active_questions = [
+        {"id": f"q{q['id']}", "question_text": q["questiontext"]}
+        for q in active_qs
+    ]
 
     return jsonify({
-        "health_summary": visit[0] if visit else {},
-        "medications":    meds,
-        "active_questions": active_qs
-    })
+        "health_summary": latest[0] if latest else {},
+        "health_trends": {
+            "blood_pressure": blood_pressure,
+            "oxygen_level":   oxygen_level,
+            "sugar_level":    sugar_level
+        },
+        "medications":        meds,
+        "active_questions":   active_questions
+    }), 200
 
 @app.route('/get-questions', methods=['GET'])
 def get_questions():
@@ -361,7 +476,7 @@ def upload_question_audio():
     if not user_id:
         return jsonify({"error": "unauthorized"}), 401
 
-    f = request.files.get("file") # record and have react convert to a file 
+    f = request.files.get("file") # record and have react convert to a file
     if not f:
         return jsonify({"error": "no file uploaded"}), 400
 
@@ -384,7 +499,7 @@ def upload_question_audio():
     }).execute()
 
     return jsonify({"transcript": text})
-    
+
 # ─── 5. Get Past Visits (limit 10) ─────────────────────────────────────────────
 @app.route("/get-past-visits", methods=["GET"])
 def get_past_visits():
