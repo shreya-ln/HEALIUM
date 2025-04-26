@@ -6,7 +6,7 @@ import SigninForm from './components/signinForm';
 import Dashboard from './components/Dashboard';
 import PatientDashboard from './components/PatientDashboard';
 import DoctorDashboard from './components/DoctorDashboard';
-import { useEffect } from 'react';
+import VisitDetail from './components/VisitDetail';
 import ChatPage from './components/ChatPage';
 
 function ProtectedRoute({ children }) {
@@ -44,6 +44,14 @@ function App() {
                 <Dashboard />
               </ProtectedRoute>
             }
+          />
+          <Route
+           path="/visit/:visitId"
+           element={
+             <ProtectedRoute>
+               <VisitDetail />
+             </ProtectedRoute>
+           }
           />
           <Route path="/ask-ai" element={<ChatPage />} />
           <Route path="*" element={<Navigate to="/signup" />} />
