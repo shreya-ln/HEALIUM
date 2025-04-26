@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 from flask_cors import CORS
 from datetime import datetime
 from audio_service import upload_audio_to_supabase, transcribe_with_whisper
+from chat_routes import chat_routes  # <-- import
+from audio_service import upload_audio_to_supabase, transcribe_with_whisper
 
 load_dotenv()
 
@@ -567,6 +569,8 @@ def upload_ocr_report():
     }).execute()
 
     return jsonify({"extracted_text": text})
+
+app.register_blueprint(chat_routes)
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 4000))
