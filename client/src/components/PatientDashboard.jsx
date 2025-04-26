@@ -53,7 +53,7 @@ function PatientDashboard() {
         ))}
       </ul>
 
-      <h2> my questiosn</h2>
+      <h2>🤔 my questions</h2>
       <ul>
         {dashboardData.active_questions.map((q, idx) => (
           <li key={idx}>
