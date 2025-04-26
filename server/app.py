@@ -2,7 +2,6 @@ import os
 import io
 from flask import Flask, request, jsonify
 from supabase import create_client, Client
-from dotenv import load_dotenv
 import openai
 import speech_recognition as sr
 from werkzeug.utils import secure_filename
@@ -23,9 +22,61 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 def get_current_user():
     return 1
 
+  
+@app.route('/signup', methods=['POST'])
+def signup():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+    role = data.get('role')  # "doctor" or "patient"
+    extra_info = data.get('extra_info')  # dict
+
+    try:
+        # 1. Supabase Auth signup
+        result = supabase.auth.sign_up({
+            "email": email,
+            "password": password
+        })
+
+        user_id = result.user.id
+
+        # 2. Save additional user info to database
+        table = 'doctors' if role == 'doctor' else 'patients'
+        supabase.table(table).insert([{ "id": user_id, **extra_info }]).execute()
+
+        # 3. Check if email verification is required
+        if result.session is None:
+            message = "Verification email sent. Please check your inbox."
+        else:
+            message = "Signup success! You can log in now."
+
+        return jsonify({"message": message}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/signin', methods=['POST'])
+def signin():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    try:
+        # Supabase login
+        result = supabase.auth.sign_in_with_password({
+            "email": email,
+            "password": password
+        })
+
+        return jsonify({"message": "Signin success!"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route('/api/health')
 def health():
-    return jsonify(status='OK', time=str(request.date if hasattr(request, 'date') else 'now'))
+    return jsonify(status='OK')
 
 @app.route('/api/patients', methods=['GET'])
 def get_patients():
