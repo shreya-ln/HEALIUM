@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-
+import ChatbotModal from './ChatbotModal';
 function PatientDashboard() {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showChat, setShowChat] = useState(false);
+
   const { user } = useAuth();
   const user_id = user?.user_id;
 
@@ -17,9 +19,9 @@ function PatientDashboard() {
         return;
       }
       try {
-        const res = await axios.get('/dashboard-data', {
-          headers: { 'Authorization': user_id }
-        });
+        const res = await axios.get(`/dashboard-data/${user_id}`, {
+            headers: { 'Authorization': user_id }
+          });
         setDashboardData(res.data);
       } catch (err) {
         console.error('Failed to fetch dashboard data', err);
@@ -61,6 +63,11 @@ function PatientDashboard() {
           </li>
         ))}
       </ul>
+      <button onClick={() => setShowChat(true)} className="chat-btn">
+        Chat with AI Assistant
+      </button>
+
+      {showChat && <ChatbotModal onClose={() => setShowChat(false)} />}
     </div>
   );
 }
