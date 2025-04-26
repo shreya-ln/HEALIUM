@@ -13,7 +13,7 @@ chat_routes = Blueprint('chat_routes', __name__)
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
 
 def get_current_user():
     user_id = request.headers.get('Authorization')
@@ -23,8 +23,9 @@ def get_current_user():
 
 # ─── 1. Chat Endpoint ────────────────────────────────────────────────────────
 @chat_routes.route('/chat', methods=['POST'])
-@chat_routes.route('/chat', methods=['POST'])
+
 def chat_with_ai():
+    client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
     user_id = get_current_user()
     data = request.get_json()
     user_question = data.get('question')
@@ -102,7 +103,7 @@ Recent Health Visits:
 
     prompt += "\n\nOCR Reports (uploaded health documents):"
     for r in reports:
-        prompt += f"\n• {r['reportdate']}: {r['reportcontent'][:300]}..."  # 길면 300자 정도만 잘라
+        prompt += f"\n• {r['reportdate']}: {r['reportcontent'][:300]}..."
 
     prompt += "\n\nRecent Chat History:\n"
     for chat in chat_history:

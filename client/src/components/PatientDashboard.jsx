@@ -19,7 +19,7 @@ function PatientDashboard() {
         return;
       }
       try {
-        const res = await axios.get(`/dashboard-data/${user_id}`, {
+        const res = await axios.get('/dashboard-data', {
             headers: { 'Authorization': user_id }
           });
         setDashboardData(res.data);
