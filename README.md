@@ -23,3 +23,7 @@ cd ../client
 npm start    
 
 go to url http://localhost:5000/api/health
+
+
+### Install supabase client
+pip3 install supabase
