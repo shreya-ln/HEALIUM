@@ -13,3 +13,13 @@ source venv/bin/activate
 # .\venv\Scripts\Activate.ps1  
 pip3 install flask flask-cors python-dotenv  
 
+
+
+### To run the application 
+cd server  
+python3 app.py    
+
+cd ../client
+npm start    
+
+go to url http://localhost:5000/api/health
