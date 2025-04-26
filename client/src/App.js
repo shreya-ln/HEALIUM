@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import SignupForm from './components/signupForm';
 import SigninForm from './components/signinForm';
-import Dashboard from './components/Dashboard'; // 우리가 새로 만들거야!
+import Dashboard from './components/Dashboard'; 
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
