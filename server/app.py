@@ -341,8 +341,9 @@ def create_visit():
 
 # patient apis #
 # ─── 1. Dashboard Data ────────────────────────────────────────────────────────
-@app.route("/dashboard-data/<patient_id>", methods=["GET"])
-def dashboard_data(patient_id):
+@app.route("/dashboard-data", methods=["GET"])
+def dashboard_data():
+    patient_id = get_current_user()
     if not patient_id:
         return jsonify({"error": "unauthorized"}), 401
 
