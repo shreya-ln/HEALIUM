@@ -606,6 +606,39 @@ def upcoming_visits():
 
     return jsonify(upcoming), 200
 
+@app.route('/visit/<visit_id>', methods=['GET'])
+def get_visit(visit_id):
+    # 1) Fetch the visit by its ID
+    resp = (
+        supabase
+        .table('visits')
+        .select('id, patient_id, doctor_id, visitdate, content, bloodpressure, oxygenlevel, sugarlevel, weight, height, visitsummaryaudio, doctorrecommendation')
+        .eq('id', visit_id)
+        .single()
+        .execute()
+    )
+
+    # 2) Handle errors or not-found
+    if not resp.data:
+        abort(404, description="Visit not found")
+
+    # 3) Return the visit record
+    visit = resp.data
+    return jsonify({
+        'visit_id':             visit['id'],
+        'patient_id':           visit['patient_id'],
+        'doctor_id':            visit['doctor_id'],
+        'visit_date':           visit['visitdate'],
+        'summary':              visit.get('content'),
+        'blood_pressure':       visit.get('bloodpressure'),
+        'oxygen_level':         visit.get('oxygenlevel'),
+        'sugar_level':          visit.get('sugarlevel'),
+        'weight':               visit.get('weight'),
+        'height':               visit.get('height'),
+        'audio_summary_url':    visit.get('visitsummaryaudio'),
+        'doctor_recommendation': visit.get('doctorrecommendation')
+    }), 200
+
 app.register_blueprint(chat_routes)
 
 if __name__ == '__main__':

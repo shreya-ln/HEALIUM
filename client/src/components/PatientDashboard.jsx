@@ -22,6 +22,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
+import ListItemButton from '@mui/material/ListItemButton';
 
 import {
   ResponsiveContainer,
@@ -186,11 +187,23 @@ export default function PatientDashboard() {
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>Upcoming Visits</Typography>
-                {upcomingVisits.length === 0
-                  ? <Typography>No upcoming visits</Typography>
-                  : upcomingVisits.map(v => (
-                      <Typography key={v.visit_id}>• {v.date} — {v.summary}</Typography>
+                {upcomingVisits.length === 0 ? (
+                 <Typography>No upcoming visits</Typography>
+                ) : (
+                  <List disablePadding>
+                    {upcomingVisits.map(v => (
+                      <ListItemButton
+                        key={v.visit_id}
+                        onClick={() => navigate(`/visit/${v.visit_id}`)}
+                      >
+                        <ListItemText
+                          primary={`${new Date(v.date).toLocaleDateString()} — ${v.summary}`}
+                          sx={{ pl: 1 }}
+                        />
+                      </ListItemButton>
                     ))}
+                  </List>
+                )}
               </CardContent>
             </Card>
           </Grid>
