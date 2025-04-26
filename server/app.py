@@ -13,7 +13,7 @@ from flask_cors import CORS
 from datetime import datetime
 from audio_service import upload_audio_to_supabase, transcribe_with_whisper
 from chat_routes import chat_routes  # <-- import
-from audio_service import upload_audio_to_supabase, transcribe_with_whisper
+from visit_routes import visit_routes
 
 load_dotenv()
 
@@ -34,7 +34,7 @@ def get_current_user():
         return None
     return user_id
 
-
+app.register_blueprint(visit_routes)
 # ---------- signup / signin API endpoints -------------- #
 
 @app.route('/signup', methods=['POST'])
@@ -671,6 +671,151 @@ def get_visit(visit_id):
 
 app.register_blueprint(chat_routes)
 
+
+@app.route('/visit/<visit_id>', methods=['GET'])
+def get_visit_by_id(visit_id):
+    try:
+        resp = (
+            supabase
+            .table('visits')
+            .select('id, patient_id, doctor_id, visitdate')
+            .eq('id', visit_id)
+            .single()
+            .execute()
+        )
+
+        if not resp.data:
+            return jsonify({'error': 'Visit not found'}), 404
+
+        return jsonify(resp.data), 200
+
+    except Exception as e:
+        print(e)
+        return jsonify({'error': 'Internal Server Error'}), 500
+
+# ======================================
+#GET patient/:patient_id
+@app.route('/patient/<patient_id>', methods=['GET'])
+def get_patient_by_id(patient_id):
+    try:
+        resp = (
+            supabase
+            .table('patients')
+            .select('id, name, dob, phone, address, preferredlanguage')
+            .eq('id', patient_id)
+            .single()
+            .execute()
+        )
+
+        if not resp.data:
+            return jsonify({'error': 'Patient not found'}), 404
+
+        return jsonify(resp.data), 200
+
+    except Exception as e:
+        print(e)
+        return jsonify({'error': 'Internal Server Error'}), 500
+# app.py
+
+@app.route('/patient-summary/<patient_id>', methods=['GET'])
+def get_patient_summary(patient_id):
+    try:
+        # 1. 환자 기본정보
+        patient = supabase.table('patients').select(
+            'id, name, dob, phone, address, preferredlanguage'
+        ).eq('id', patient_id).single().execute()
+
+        # 2. medications
+        medications = supabase.table('medications').select(
+            'medicationname, dosage, frequency, startdate, enddate, notes'
+        ).eq('patient_id', patient_id).execute()
+
+        # 3. visit history
+        visits = supabase.table('visits').select(
+            'visitdate, bloodpressure, oxygenlevel, sugarlevel'
+        ).eq('patient_id', patient_id).order('visitdate', desc=True).limit(3).execute()
+
+        # 4. ocr reports it only pulls up to three
+        reports = supabase.table('reports').select(
+            'reporttype, reportcontent, reportdate'
+        ).eq('patient_id', patient_id).order('reportdate', desc=True).limit(3).execute()
+
+        # 5. questions
+        questions = supabase.table('questions').select(
+            'questiontext, daterecorded'
+        ).eq('patient_id', patient_id).eq('status', 'pending').execute()
+
+        return jsonify({
+            'patient': patient.data,
+            'medications': medications.data,
+            'recent_visits': visits.data,
+            'reports': reports.data,
+            'pending_questions': questions.data,
+        }), 200
+
+    except Exception as e:
+        print('Error in patient-summary:', e)
+        return jsonify({'error': 'Internal Server Error'}), 500
+
+
+
+@app.route('/search-patient', methods=['POST'])
+def search_patient():
+    try:
+        data = request.json
+        name = data.get('name')
+        dob = data.get('dob')
+
+        if not name or not dob:
+            return jsonify({'error': 'Missing name or dob'}), 400
+
+        # 이름 부분 매칭 + 정확한 생일 매칭
+        resp = (
+            supabase
+            .table('patients')
+            .select('id, name, dob')
+            .ilike('name', f'%{name}%')   # 부분 일치
+            .eq('dob', dob)               # DOB는 정확히
+            .execute()
+        )
+
+        patients = resp.data or []
+        return jsonify(patients), 200
+
+    except Exception as e:
+        print('Error in search_patient:', e)
+        return jsonify({'error': 'Internal Server Error'}), 500
+
+# server/visit_routes.py
+@app.route('/create-appointment', methods=['POST'])
+def create_appointment():
+    try:
+        data = request.json
+        patient_id = data.get('patient_id')
+        doctor_id = data.get('doctor_id')
+        visitdate = data.get('visitdate')
+        memo = data.get('memo')  # Optional
+
+        if not patient_id or not doctor_id or not visitdate:
+            return jsonify({'error': 'Missing patient_id, doctor_id, or visitdate'}), 400
+
+        # Create a new visit
+        supabase.table('visits').insert({
+            'patient_id': patient_id,
+            'doctor_id': doctor_id,
+            'visitdate': visitdate,
+            'content': memo or '',
+        }).execute()
+
+        return jsonify({'message': 'Appointment created successfully'}), 200
+
+    except Exception as e:
+        print('Error in create_appointment:', e)
+        return jsonify({'error': 'Internal Server Error'}), 500
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 4000))
     app.run(host='0.0.0.0', port=port, debug=True)
+
+
+
