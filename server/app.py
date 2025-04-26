@@ -1,15 +1,17 @@
 import os
 import io
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import openai
 import speech_recognition as sr
 from werkzeug.utils import secure_filename
-from PIL import Image
 import pytesseract
 from dotenv import load_dotenv
+from datetime import datetime
 load_dotenv()
+
 
 app = Flask(__name__)
 CORS(app)
@@ -21,7 +23,7 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_current_user():
-    return 1
+    return "5ebf318b-e2cc-4b63-9a59-2356685fe06f"
 
 @app.route('/api/health')
 def health():
@@ -259,9 +261,9 @@ def get_questions():
     qs = (
         supabase
         .table("questions")
-        .select("*")
-        .eq("patientid", user_id)
-        .neq("doctorresponse", "Answered")        # only unanswered
+        .select("questiontext")
+        .eq("patient_id", user_id)
+        .neq("status", "Answered")        # only unanswered
         .order("daterecorded", desc=True)
         .execute()
     ).data or []
@@ -275,12 +277,12 @@ def ask_ai():
     if not user_id:
         return jsonify({"error": "unauthorized"}), 401
 
-    data = request.get_json() or {}
-    question = data.get("question")
+    payload = request.get_json() or {}
+    question = payload.get("question")
     if not question:
         return jsonify({"error": "question is required"}), 400
 
-    # Call GPT
+    # 1) Call GPT
     resp = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[
@@ -290,9 +292,9 @@ def ask_ai():
     )
     answer = resp.choices[0].message.content
 
-    # Save to questions table
+    # 2) Persist into your new `questions` table
     supabase.table("questions").insert({
-        "patientid":      user_id,
+        "patient_id":     user_id,                  
         "questiontext":   question,
         "doctorresponse": answer,
         "status":         "answered",
@@ -325,7 +327,7 @@ def upload_question_audio():
 
     # Insert as active question
     supabase.table("questions").insert({
-        "patientid":    user_id,
+        "patient_id":    user_id,
         "questiontext": text,
         "questionaudio": filename,
         "status":       "Not",
@@ -345,7 +347,7 @@ def get_past_visits():
         supabase
         .table("visits")
         .select("*")
-        .eq("patientid", user_id)
+        .eq("patient_id", user_id)
         .order("visitdate", desc=True)
         .limit(10)                        # <— only grab the latest 10
         .execute()
@@ -378,7 +380,7 @@ def upload_ocr_report():
 
     # Save into reports
     supabase.table("reports").insert({
-        "patientid":    user_id,
+        "patient_id":    user_id,
         "reportcontent": text,
         "reporttype":   ext.lstrip("."),
         "reportdate":   datetime.utcnow().date().isoformat()
