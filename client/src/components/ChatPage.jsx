@@ -67,7 +67,8 @@ export default function ChatPage() {
                 sx={{
                   p: 1.5,
                   maxWidth: '80%',
-                  bgcolor: m.role === 'user' ? 'primary.light' : 'grey.100'
+                  bgcolor: m.role === 'user' ? 'primary.light' : 'grey.100',
+                  position: 'relative',
                 }}
               >
                 <ListItemText primary={m.text} />

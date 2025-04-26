@@ -22,12 +22,22 @@ export default function SignupForm() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     const extraFields = ['name','hospital','specialization','dob','phone','address','preferredlanguage'];
-    if (extraFields.includes(name)) {
+    
+    if (name === 'email') {
+      // Store email in both `form` and `extra_info`
+      setForm(prev => ({
+        ...prev,
+        [name]: value,
+        extra_info: { ...prev.extra_info, [name]: value }
+      }));
+    } else if (extraFields.includes(name)) {
+      // Store other fields in `extra_info`
       setForm(prev => ({
         ...prev,
         extra_info: { ...prev.extra_info, [name]: value }
       }));
     } else {
+      // Store other fields in `form`
       setForm(prev => ({ ...prev, [name]: value }));
     }
   };
@@ -37,7 +47,7 @@ export default function SignupForm() {
     setError('');
     setMessage('');
     try {
-      const res = await signup(form, role);
+      const res = await signup({ ...form }, role);
       setMessage(res.message || 'Signup successful!');
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Signup failed.');
