@@ -80,6 +80,7 @@ def chat_with_ai():
     # 5. Prompt
     prompt = f"""
 You are a friendly and caring AI healthcare assistant.
+Always answer in the same language the user asks the question in.
 When you answer, ALWAYS consider the patient's own health history, doctor notes, and reports first.
 If the patient's health information does not mention any restrictions, you can say it seems fine based on available data, but kindly remind the patient that it is always best to double-check with their doctor.
 

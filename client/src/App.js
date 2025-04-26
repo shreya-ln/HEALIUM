@@ -10,6 +10,8 @@ import { useEffect } from 'react';
 import AppointmentDetail from './components/AppointmentDetail';
 import SearchPatient from './components/SearchPatient';
 import CreateAppointment from './components/CreateAppointment';
+import VisitDetail from './components/VisitDetail';
+import ChatPage from './components/ChatPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -57,9 +59,31 @@ function App() {
         <CreateAppointment />
       </ProtectedRoute>
     } />
-
   <Route path="*" element={<Navigate to="/signup" />} />
-</Routes>
+          <Route path="/doctor/dashboard" element={
+            <ProtectedRoute>
+              <DoctorDashboard />
+            </ProtectedRoute>
+          } />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+           path="/visit/:visitId"
+           element={
+             <ProtectedRoute>
+               <VisitDetail />
+             </ProtectedRoute>
+           }
+          />
+          <Route path="/ask-ai" element={<ChatPage />} />
+          <Route path="*" element={<Navigate to="/signup" />} />
+       </Routes>
       </Router>
     </AuthProvider>
   );

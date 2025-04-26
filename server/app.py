@@ -11,10 +11,9 @@ import pytesseract
 from dotenv import load_dotenv
 from flask_cors import CORS
 from datetime import datetime
+from audio_service import upload_audio_to_supabase, transcribe_with_whisper
 from chat_routes import chat_routes  # <-- import
 from visit_routes import visit_routes
-
-
 
 load_dotenv()
 
@@ -24,7 +23,8 @@ CORS(app)
 
 # Supabase setup
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -440,7 +440,7 @@ def get_questions():
     return jsonify(qs)
 
 
-@app.route("/ask-ai", methods=["POST"])
+@app.route("/ask-ai-old", methods=["POST"])
 def ask_ai():
     user_id = get_current_user()
     if not user_id:
@@ -466,7 +466,7 @@ def ask_ai():
         "patient_id":      user_id,
         "questiontext":   question,
         "doctorresponse": answer,
-        "status":         "answered",
+        "status":         "answered_by_ai",
         "daterecorded":   datetime.utcnow().isoformat()
     }).execute()
 
@@ -481,29 +481,64 @@ def upload_question_audio():
     if not user_id:
         return jsonify({"error": "unauthorized"}), 401
 
-    f = request.files.get("file") # record and have react convert to a file
+    f = request.files.get("file")
     if not f:
         return jsonify({"error": "no file uploaded"}), 400
 
-    filename = secure_filename(f.filename)
-    audio_bytes = f.read()
+    # 1) Upload to Supabase Storage
+    try:
+        public_url = upload_audio_to_supabase(
+            supabase,
+            os.getenv("SUPABASE_AUDIO_BUCKET", "audio-uploads"),
+            f
+        )
+    except Exception as e:
+        return jsonify({"error": f"Storage upload failed: {e}"}), 500
 
-    # Transcribe
-    recognizer = sr.Recognizer()
-    with sr.AudioFile(io.BytesIO(audio_bytes)) as src:
-        audio_data = recognizer.record(src)
-        text = recognizer.recognize_google(audio_data)
+    # 2) Transcribe with Whisper
+    f.stream.seek(0)
+    raw = f.read()
+    try:
+        transcript = transcribe_with_whisper(raw, f.filename)
+    except Exception as e:
+        return jsonify({"error": f"Transcription failed: {e}"}), 500
 
-    # Insert as active question
-    supabase.table("questions").insert({
+    # 3) Persist to your `questions` table
+    record = {
         "patient_id":    user_id,
-        "questiontext": text,
-        "questionaudio": filename,
-        "status":       "Not",
-        "daterecorded": datetime.utcnow().isoformat()
-    }).execute()
+        "questiontext":  transcript,
+        "questionaudio": public_url,
+        "status":        "Not",
+        "daterecorded":  datetime.utcnow().isoformat()
+    }
+    supabase.table("questions").insert(record).execute()
 
-    return jsonify({"transcript": text})
+    return jsonify({
+        "transcript": transcript,
+        "audioUrl":   public_url
+    }), 200
+
+@app.route("/upload-question-audio-for-chat", methods=["POST"])
+def upload_question_audio_for_chat():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "no file uploaded"}), 400
+
+    # 1) Transcribe with Whisper
+    f.stream.seek(0)
+    raw = f.read()
+    try:
+        transcript = transcribe_with_whisper(raw, f.filename)
+    except Exception as e:
+        return jsonify({"error": f"Transcription failed: {e}"}), 500
+
+    return jsonify({"transcript": transcript}), 200
+
+
 
 # ─── 5. Get Past Visits (limit 10) ─────────────────────────────────────────────
 @app.route("/get-past-visits", methods=["GET"])
@@ -557,11 +592,84 @@ def upload_ocr_report():
 
     return jsonify({"extracted_text": text})
 
-## chatbot
+@app.route('/upcoming-visits', methods=['GET'])
+def upcoming_visits():
+    # 1) Identify patient
+    patient_id = get_current_user()
+    if not patient_id:
+        abort(401, description="Unauthorized")
+
+    # 2) “Now” in ISO format for Postgres comparison
+    now_iso = datetime.utcnow().isoformat()
+
+    # 3) Query for visits after today
+    resp = (
+        supabase
+        .table('visits')
+        .select('id, doctor_id, visitdate, content')
+        .eq('patient_id', patient_id)
+        .gt('visitdate', now_iso)
+        .order('visitdate', desc=False)
+        .execute()
+    )
+
+    visits = resp.data or []
+
+    # 4) Format for client
+    upcoming = [
+        {
+            "visit_id":   v["id"],
+            "date":       v["visitdate"].split("T")[0],
+            "doctor_id":  v["doctor_id"],
+            "summary":    v.get("content", "")
+        }
+        for v in visits
+    ]
+
+    return jsonify(upcoming), 200
+
+@app.route('/visit/<visit_id>', methods=['GET'])
+def get_visit(visit_id):
+    # 1) Fetch the visit by its ID
+    resp = (
+        supabase
+        .table('visits')
+        .select('id, patient_id, doctor_id, visitdate, content, bloodpressure, oxygenlevel, sugarlevel, weight, height, visitsummaryaudio, doctorrecommendation')
+        .eq('id', visit_id)
+        .single()
+        .execute()
+    )
+
+    # 2) Handle errors or not-found
+    if not resp.data:
+        abort(404, description="Visit not found")
+
+    # 3) Return the visit record
+    visit = resp.data
+    audio_url = visit.get('visitsummaryaudio')
+    if audio_url:
+        audio_url = audio_url.lstrip('/') 
+        audio_url = supabase.storage.from_(
+            os.getenv("SUPABASE_AUDIO_BUCKET", "audio-uploads")
+        ).get_public_url(audio_url)
+        audio_url = audio_url.split('?', 1)[0]
+    print("Public: ", audio_url)
+    return jsonify({
+        'visit_id':             visit['id'],
+        'patient_id':           visit['patient_id'],
+        'doctor_id':            visit['doctor_id'],
+        'visit_date':           visit['visitdate'],
+        'summary':              visit.get('content'),
+        'blood_pressure':       visit.get('bloodpressure'),
+        'oxygen_level':         visit.get('oxygenlevel'),
+        'sugar_level':          visit.get('sugarlevel'),
+        'weight':               visit.get('weight'),
+        'height':               visit.get('height'),
+        'audio_summary_url':    audio_url,
+        'doctor_recommendation': visit.get('doctorrecommendation')
+    }), 200
 
 app.register_blueprint(chat_routes)
-
-
 
 
 @app.route('/visit/<visit_id>', methods=['GET'])
