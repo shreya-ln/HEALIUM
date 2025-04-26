@@ -1,19 +1,28 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
 import os
-from dotenv import load_dotenv
+import io
+from flask import Flask, request, jsonify
 from supabase import create_client, Client
-
-load_dotenv()  # Load environment variables from .env
+import openai
+import speech_recognition as sr
+from werkzeug.utils import secure_filename
+from PIL import Image
+import pytesseract
+from dotenv import load_dotenv
+load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # Allow React dev server to talk to Flask
+CORS(app)
 
-# Connect to Supabase
-url = os.getenv("SUPABASE_URL")
-key = os.getenv("SUPABASE_API_KEY")
-supabase: Client = create_client(url, key)
+# Supabase setup
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def get_current_user():
+    return 1
+
+  
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.get_json()
@@ -64,10 +73,370 @@ def signin():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
 @app.route('/api/health')
 def health():
     return jsonify(status='OK')
 
+@app.route('/api/patients', methods=['GET'])
+def get_patients():
+    response = supabase.table('patients').select('*').execute()
+    return jsonify(response.data), 200
+
+
+# ---------- Doctor API endpoints -------------- #
+# Fetch the list of patients
+@app.route('/list-patients', methods=['GET'])
+def list_patients():
+    # 1) Get doctorId from query string
+    doctor_id = request.args.get('doctorId', type=int)
+    if doctor_id is None:
+        abort(400, description="Missing required query parameter: doctorId")
+
+    # 2) Fetch all visits for that doctor
+    visits_resp = (
+        supabase
+        .table('visits')
+        .select('patientid, visitdate')
+        .eq('doctorid', doctor_id)
+        .execute()
+    )
+    visits = visits_resp.data
+
+    # 3) Compute the latest visit date per patient
+    last_visits = {}
+    for v in visits:
+        pid      = v['patientid']
+        date_str = v['visitdate'].split('T')[0]
+        if pid not in last_visits or date_str > last_visits[pid]:
+            last_visits[pid] = date_str
+
+    if not last_visits:
+        return jsonify([]), 200
+
+    # 4) Fetch patient names for just those IDs
+    patient_ids = list(last_visits.keys())
+    patients_resp = (
+        supabase
+        .table('patients')
+        .select('id, name')
+        .in_('id', patient_ids)
+        .execute()
+    )
+    patients = patients_resp.data
+
+    # 5) Build and return the payload
+    result = []
+    for p in patients:
+        pid = p['id']
+        result.append({
+            "patient_id": f"p{pid}",
+            "name":       p['name'],
+            "last_visit": last_visits.get(pid)
+        })
+
+    return jsonify(result), 200
+
+# Fetch the patient profile
+@app.route('/patient-profile/<int:patient_id>', methods=['GET'])
+def patient_profile(patient_id):
+    # 1. Fetch patient_info
+    patient_resp = (
+        supabase
+        .table('patients')
+        .select('name, dob, email, phone, address, preferredlanguage')
+        .eq('id', patient_id)
+        .single()
+        .execute()
+    )
+    if patient_resp.data is None:
+        abort(404, description="Patient not found")
+    patient = patient_resp.data
+
+    # 2. Fetch all visits for this patient
+    visits_resp = (
+        supabase
+        .table('visits')
+        .select('visitdate, content, bloodpressure, oxygenlevel, sugarlevel')
+        .eq('patientid', patient_id)
+        .order('visitdate', desc=False)
+        .execute()
+    )
+    visits = visits_resp.data or []
+
+    # 3. Build health_trends and visit_history
+    blood_pressure = []
+    oxygen_level  = []
+    sugar_level   = []
+    visit_history = []
+
+    for v in visits:
+        date_str = v['visitdate'].split('T')[0]
+
+        if v.get('bloodpressure') is not None:
+            blood_pressure.append({'date': date_str, 'value': v['bloodpressure']})
+        if v.get('oxygenlevel') is not None:
+            oxygen_level.append({'date': date_str, 'value': v['oxygenlevel']})
+        if v.get('sugarlevel') is not None:
+            sugar_level.append({'date': date_str, 'value': v['sugarlevel']})
+
+        if v.get('content'):
+            visit_history.append({
+                'date':    date_str,
+                'summary': v['content']
+            })
+
+    # 4. Fetch pending (unanswered) questions
+    q_resp = (
+        supabase
+        .table('questions')
+        .select('id, questiontext')
+        .eq('patientid', patient_id)
+        .eq('status', 'Not')
+        .execute()
+    )
+    questions = q_resp.data or []
+    pending_questions = [
+        {'id': f"q{q['id']}", 'question_text': q['questiontext']}
+        for q in questions
+    ]
+
+    # 5. Return combined profile
+    return jsonify({
+        'patient_info': {
+            'name':  patient['name'],
+            'dob':   patient['dob'],
+            'email': patient['email'],
+            'phone': patient['phone'],
+            'address': patient['address'],
+            'preferredlanguage': patient['preferredlanguage']
+        },
+        'health_trends': {
+            'blood_pressure': blood_pressure,
+            'oxygen_level':   oxygen_level,
+            'sugar_level':    sugar_level
+        },
+        'visit_history':     visit_history,
+        'pending_questions': pending_questions
+    }), 200
+
+# Create a new visit
+@app.route('/api/visits', methods=['POST'])
+def create_visit():
+    data = request.get_json() or {}
+
+    # 1) Validate required fields
+    required = ['patient_id', 'doctor_id', 'content']
+    missing = [f for f in required if f not in data]
+    if missing:
+        abort(400, description=f"Missing fields: {', '.join(missing)}")
+
+    # 2) Build insert payload (map your JSON keys to DB column names)
+    new_visit = {
+        'patientid':             data['patient_id'],
+        'doctorid':              data['doctor_id'],
+        'content':               data['content'],
+        'bloodpressure':         data.get('blood_pressure'),
+        'oxygenlevel':           data.get('oxygen_level'),
+        'sugarlevel':            data.get('sugar_level'),
+        'weight':                data.get('weight'),
+        'height':                data.get('height'),
+        'visitsummaryaudio':     data.get('visit_summary_audio'),
+        'doctorrecommendations': data.get('doctor_recommendations'),
+        'visitdate':             data.get('visit_date') or datetime.utcnow().isoformat()
+    }
+
+    # 3) Insert into Supabase
+    resp = supabase.table('visits').insert(new_visit).execute()
+
+    # 4) Check for success
+    if not resp.data:
+        abort(resp.status_code or 500, description="Failed to create visit")
+
+    # 5) Return the newly created visit record
+    created = resp.data[0]
+    return jsonify(created), 201
+
+# patient apis #
+# ─── 1. Dashboard Data ────────────────────────────────────────────────────────
+@app.route("/dashboard-data", methods=["GET"])
+def dashboard_data():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    # a) Latest visit as health summary
+    visit = (
+        supabase
+        .table("visits")
+        .select("bloodpressure,oxygenlevel,sugarlevel,weight,height,doctorrecommendations,visitdate")
+        .eq("patientid", user_id)
+        .order("visitdate", desc=True)
+        .limit(1)
+        .execute()
+    ).data or []
+
+    # b) All medications
+    meds = (
+        supabase
+        .table("medications")
+        .select("*")
+        .eq("patientid", user_id)
+        .execute()
+    ).data or []
+
+    # c) Active questions
+    active_qs = (
+        supabase
+        .table("questions")
+        .select("*")
+        .eq("patientid", user_id)
+        .eq("status", "Not")
+        .execute()
+    ).data or []
+
+    return jsonify({
+        "health_summary": visit[0] if visit else {},
+        "medications":    meds,
+        "active_questions": active_qs
+    })
+
+@app.route('/get-questions', methods=['GET'])
+def get_questions():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    qs = (
+        supabase
+        .table("questions")
+        .select("*")
+        .eq("patientid", user_id)
+        .neq("doctorresponse", "Answered")        # only unanswered
+        .order("daterecorded", desc=True)
+        .execute()
+    ).data or []
+
+    return jsonify(qs)
+
+
+@app.route("/ask-ai", methods=["POST"])
+def ask_ai():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json() or {}
+    question = data.get("question")
+    if not question:
+        return jsonify({"error": "question is required"}), 400
+
+    # Call GPT
+    resp = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a multilingual medical assistant."},
+            {"role": "user",   "content": question}
+        ]
+    )
+    answer = resp.choices[0].message.content
+
+    # Save to questions table
+    supabase.table("questions").insert({
+        "patientid":      user_id,
+        "questiontext":   question,
+        "doctorresponse": answer,
+        "status":         "answered",
+        "daterecorded":   datetime.utcnow().isoformat()
+    }).execute()
+
+    return jsonify({"answer": answer})
+
+
+
+# ─── 3. Upload Question Audio ─────────────────────────────────────────────────
+@app.route("/upload-question-audio", methods=["POST"])
+def upload_question_audio():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    f = request.files.get("file") # record and have react convert to a file 
+    if not f:
+        return jsonify({"error": "no file uploaded"}), 400
+
+    filename = secure_filename(f.filename)
+    audio_bytes = f.read()
+
+    # Transcribe
+    recognizer = sr.Recognizer()
+    with sr.AudioFile(io.BytesIO(audio_bytes)) as src:
+        audio_data = recognizer.record(src)
+        text = recognizer.recognize_google(audio_data)
+
+    # Insert as active question
+    supabase.table("questions").insert({
+        "patientid":    user_id,
+        "questiontext": text,
+        "questionaudio": filename,
+        "status":       "Not",
+        "daterecorded": datetime.utcnow().isoformat()
+    }).execute()
+
+    return jsonify({"transcript": text})
+    
+# ─── 5. Get Past Visits (limit 10) ─────────────────────────────────────────────
+@app.route("/get-past-visits", methods=["GET"])
+def get_past_visits():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    resp = (
+        supabase
+        .table("visits")
+        .select("*")
+        .eq("patientid", user_id)
+        .order("visitdate", desc=True)
+        .limit(10)                        # <— only grab the latest 10
+        .execute()
+    )
+
+    visits = resp.data or []
+    return jsonify(visits)
+
+# ─── 6. Upload OCR Report ────────────────────────────────────────────────────
+@app.route("/upload-ocr-report", methods=["POST"])
+def upload_ocr_report():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "no file uploaded"}), 400
+
+    filename = secure_filename(f.filename)
+    ext = os.path.splitext(filename)[1].lower()
+
+    # PDF → images → OCR, else image → OCR
+    if ext == ".pdf":
+        pages = convert_from_bytes(f.read())
+        text = "".join(pytesseract.image_to_string(page) for page in pages)
+    else:
+        img = Image.open(f.stream)
+        text = pytesseract.image_to_string(img)
+
+    # Save into reports
+    supabase.table("reports").insert({
+        "patientid":    user_id,
+        "reportcontent": text,
+        "reporttype":   ext.lstrip("."),
+        "reportdate":   datetime.utcnow().date().isoformat()
+    }).execute()
+
+    return jsonify({"extracted_text": text})
+
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
+    port = int(os.getenv('PORT', 4000))
     app.run(host='0.0.0.0', port=port, debug=True)
