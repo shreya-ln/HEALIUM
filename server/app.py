@@ -11,6 +11,7 @@ import pytesseract
 from dotenv import load_dotenv
 from flask_cors import CORS
 from datetime import datetime
+from audio_service import upload_audio_to_supabase, transcribe_with_whisper
 
 load_dotenv()
 
@@ -20,7 +21,8 @@ CORS(app)
 
 # Supabase setup
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -477,29 +479,42 @@ def upload_question_audio():
     if not user_id:
         return jsonify({"error": "unauthorized"}), 401
 
-    f = request.files.get("file") # record and have react convert to a file
+    f = request.files.get("file")
     if not f:
         return jsonify({"error": "no file uploaded"}), 400
 
-    filename = secure_filename(f.filename)
-    audio_bytes = f.read()
+    # 1) Upload to Supabase Storage
+    try:
+        public_url = upload_audio_to_supabase(
+            supabase,
+            os.getenv("SUPABASE_AUDIO_BUCKET", "audio-uploads"),
+            f
+        )
+    except Exception as e:
+        return jsonify({"error": f"Storage upload failed: {e}"}), 500
 
-    # Transcribe
-    recognizer = sr.Recognizer()
-    with sr.AudioFile(io.BytesIO(audio_bytes)) as src:
-        audio_data = recognizer.record(src)
-        text = recognizer.recognize_google(audio_data)
+    # 2) Transcribe with Whisper
+    f.stream.seek(0)
+    raw = f.read()
+    try:
+        transcript = transcribe_with_whisper(raw, f.filename)
+    except Exception as e:
+        return jsonify({"error": f"Transcription failed: {e}"}), 500
 
-    # Insert as active question
-    supabase.table("questions").insert({
+    # 3) Persist to your `questions` table
+    record = {
         "patient_id":    user_id,
-        "questiontext": text,
-        "questionaudio": filename,
-        "status":       "Not",
-        "daterecorded": datetime.utcnow().isoformat()
-    }).execute()
+        "questiontext":  transcript,
+        "questionaudio": public_url,
+        "status":        "Not",
+        "daterecorded":  datetime.utcnow().isoformat()
+    }
+    supabase.table("questions").insert(record).execute()
 
-    return jsonify({"transcript": text})
+    return jsonify({
+        "transcript": transcript,
+        "audioUrl":   public_url
+    }), 200
 
 # ─── 5. Get Past Visits (limit 10) ─────────────────────────────────────────────
 @app.route("/get-past-visits", methods=["GET"])
