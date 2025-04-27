@@ -791,7 +791,7 @@ def patient_summary(patient_id):
     reports_resp = (
         supabase
         .table('reports')
-        .select('id, reporttype, reportcontent, reportdate')
+        .select('id, reporttype, reportcontent, reportdate, image_url')
         .eq('patient_id', patient_id)
         .order('reportdate', desc=True)
         .execute()
@@ -983,6 +983,8 @@ def trend_recommendations(trendData):
     print("Final response: ", recs)
     return recs
 
+
+
 # summarize image
 @app.route('/summarize-image', methods=['POST'])
 def summarize_image():
@@ -1001,6 +1003,7 @@ def summarize_image():
             os.getenv("SUPABASE_IMAGE_BUCKET", "image-uploads"),
             f
         )
+
     except Exception as e:
         print('Image upload error:', e)
         return jsonify({"error": "Failed to upload image"}), 500
@@ -1037,6 +1040,7 @@ def summarize_image():
 
         summary = vision_response.choices[0].message.content
 
+
     except Exception as e:
         print('Image summarization error:', e)
         return jsonify({"error": f"Failed to summarize image: {e}"}), 500
@@ -1052,10 +1056,10 @@ def summarize_image():
 def add_report():
     try:
         data = request.get_json()
-        patient_id = data.get('patient_id')  # 👈 get patient_id from frontend
+        patient_id = data.get('patient_id')
         report_content = data.get('report_content')
         report_type = data.get('report_type')
-
+        image_url = data.get('image_url')
         if not patient_id or not report_content or not report_type:
             return jsonify({"error": "Missing fields"}), 400
 
@@ -1064,7 +1068,8 @@ def add_report():
             'patient_id': patient_id,
             'reportcontent': report_content,
             'reporttype': report_type,
-            'reportdate': datetime.utcnow().isoformat()
+            'reportdate': datetime.utcnow().isoformat(),
+            'image_url': image_url
         }).execute()
 
         return jsonify({"message": "Report added successfully"}), 200
@@ -1073,7 +1078,34 @@ def add_report():
         print('Error in add_report:', e)
         return jsonify({"error": "Internal Server Error"}), 500
 
+@app.route('/update-visit/<visit_id>', methods=['PATCH'])
+def update_visit(visit_id):
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
 
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    try:
+        update_fields = {}
+
+        # 필요한 필드만 업데이트
+        for field in ['bloodpressure', 'oxygenlevel', 'sugarlevel', 'weight', 'height', 'doctorrecommendation', 'content', 'visitsummaryaudio']:
+            if field in data:
+                update_fields[field] = data[field]
+
+        if not update_fields:
+            return jsonify({"error": "No valid fields to update"}), 400
+
+        supabase.table('visits').update(update_fields).eq('id', visit_id).execute()
+
+        return jsonify({"message": "Visit updated successfully"}), 200
+
+    except Exception as e:
+        print('Error updating visit:', e)
+        return jsonify({"error": "Internal Server Error"}), 500
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 4000))
