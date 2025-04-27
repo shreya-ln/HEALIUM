@@ -579,9 +579,6 @@ def get_past_visits():
         .limit(10)
         .execute()
     )
-    if not resp.data:
-        abort(500, description="Error fetching past visits")
-
     visits = resp.data or []
     return jsonify(visits), 200
 
