@@ -28,6 +28,12 @@ import Fab from '@mui/material/Fab';
 import Avatar from '@mui/material/Avatar';
 import ChatIcon from '@mui/icons-material/Chat';
 import MedicationIcon from '@mui/icons-material/Medication';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import Accordion from '@mui/material/Accordion';
+import AccordionSummary from '@mui/material/AccordionSummary';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ListItem from '@mui/material/ListItem';
 
 import {
   ResponsiveContainer,
@@ -116,7 +122,8 @@ export default function PatientDashboard() {
   const {
     medications,
     health_trends: { blood_pressure, oxygen_level, sugar_level },
-    recommendations: { blood_pressure_info, oxygen_level_info, sugar_level_info }
+    recommendations: { blood_pressure_info, oxygen_level_info, sugar_level_info },
+    reports,
   } = dashboardData;
 
   const bloodPressureData = blood_pressure.map(bp => {
@@ -139,10 +146,10 @@ export default function PatientDashboard() {
     <Box sx={{ display: 'flex', backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
       <CssBaseline />
 
-      <AppBar position="fixed" sx={{ zIndex: theme => theme.zIndex.drawer + 1, bgcolor: '#fff', color: 'black' }}>
+      <AppBar position="fixed" sx={{ zIndex: theme => theme.zIndex.drawer + 1, bgcolor: 'linear-gradient(135deg, #009688 30%, #4DB6AC 100%)', color: '#fff' }}>
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>Patient Dashboard</Typography>
-          <Button variant="contained" onClick={() => navigate('/ask-ai')} sx={{ bgcolor: '#1976d2' }}>
+          <Button variant="contained" onClick={() => navigate('/ask-ai')} sx={{ bgcolor: 'purple' }}>
             Ask Our Agent!
           </Button>
         </Toolbar>
@@ -232,8 +239,18 @@ export default function PatientDashboard() {
                       <Line type="monotone" dataKey="diastolic" stroke="#ef5350" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
-                  <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue' }}>
-                    {blood_pressure_info}
+                  <Typography
+                      variant="body2"
+                      sx={{
+                      mt: 1,
+                        fontStyle: 'italic',
+                        color: 'blue',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                  >
+                  <AutoAwesomeIcon sx={{ mr: 1, color: 'red' }} />
+                  {blood_pressure_info}
                   </Typography>
                 </CardContent>
               </Card>
@@ -252,8 +269,18 @@ export default function PatientDashboard() {
                       <Line type="monotone" dataKey="value" stroke="#66bb6a" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
-                  <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue' }}>
-                    {oxygen_level_info}
+                  <Typography
+                      variant="body2"
+                      sx={{
+                      mt: 1,
+                        fontStyle: 'italic',
+                        color: 'blue',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                  >
+                  <AutoAwesomeIcon sx={{ mr: 1, color: 'red' }} />
+                  {oxygen_level_info}
                   </Typography>
                 </CardContent>
               </Card>
@@ -272,8 +299,18 @@ export default function PatientDashboard() {
                       <Line type="monotone" dataKey="value" stroke="#ec407a" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
-                  <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue' }}>
-                    {sugar_level_info}
+                  <Typography
+                      variant="body2"
+                      sx={{
+                      mt: 1,
+                        fontStyle: 'italic',
+                        color: 'blue',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                  >
+                  <AutoAwesomeIcon sx={{ mr: 1, color: 'red' }} />
+                  {sugar_level_info}
                   </Typography>
                 </CardContent>
               </Card>
@@ -334,6 +371,58 @@ export default function PatientDashboard() {
               </Card>
             </Box>
           </Box>
+
+          {/* Reports */}
+          <Accordion sx={{ mb: 4, borderRadius: 2, boxShadow: 1 }} defaultExpanded>
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ backgroundColor: '#f5f5f5' }}
+            >
+              <Box display="flex" alignItems="center" width="100%">
+                <Typography variant="h6">🧾 Patient Reports</Typography>
+                <Chip
+                  label={reports.length}
+                  size="small"
+                  color="primary"
+                  sx={{ ml: 2 }}
+                />
+              </Box>
+            </AccordionSummary>
+
+            <AccordionDetails>
+              {reports.length > 0 ? (
+                <List disablePadding>
+                  {reports.map((r, idx) => (
+                    <ListItem key={idx} divider>
+                      <Box display="flex" justifyContent="space-between" width="100%">
+                        <Box>
+                          <Typography variant="subtitle1">{r.type}</Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            {r.content}
+                          </Typography>
+                          {r.image_url && (
+                            <Box
+                              component="img"
+                              src={r.image_url}
+                              alt={r.type}
+                              sx={{ mt: 1, width: '100%', borderRadius: 1 }}
+                            />
+                          )}
+                        </Box>
+                        <Typography variant="body2" color="textSecondary">
+                          {new Date(r.date).toLocaleDateString()}
+                        </Typography>
+                      </Box>
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography color="textSecondary">
+                  No OCR reports available.
+                </Typography>
+              )}
+            </AccordionDetails>
+          </Accordion>
 
         {/* Row 3: BMI Calculator + Health Dad Joke */}
 

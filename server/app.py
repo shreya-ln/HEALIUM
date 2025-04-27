@@ -401,6 +401,25 @@ def dashboard_data():
         for q in active_qs
     ]
 
+    reports = (
+        supabase
+        .table("reports")
+        .select("id, reporttype, reportcontent, reportdate, image_url")
+        .eq("patient_id", patient_id)
+        .order("reportdate", desc=True)
+        .execute()
+    ).data or []
+    formatted_reports = [
+        {
+            "report_id":      r["id"],
+            "type":           r["reporttype"],
+            "content":        r["reportcontent"],
+            "date":           r["reportdate"],
+            "image_url":      r.get("image_url")
+        }
+        for r in reports
+    ]
+
     llm_result = trend_recommendations({
             "blood_pressure": blood_pressure,
             "oxygen_level":   oxygen_level,
@@ -416,7 +435,8 @@ def dashboard_data():
         },
         "medications":        meds,
         "active_questions":   active_questions,
-        "recommendations":    llm_result
+        "recommendations":    llm_result,
+        "reports":            formatted_reports
     }), 200
 
 @app.route('/get-questions', methods=['GET'])
