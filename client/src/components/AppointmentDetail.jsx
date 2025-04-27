@@ -24,6 +24,7 @@ import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import NoteAddIcon from '@mui/icons-material/NoteAdd';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 function AppointmentDetail() {
   const { user } = useAuth();
@@ -268,7 +269,7 @@ function AppointmentDetail() {
     </Box>
   );
 
-  const { patient, medications, recent_visits, reports, pending_questions } = patientSummary;
+  const { patient, medications, recent_visits, reports, pending_questions, recommendation} = patientSummary;
 
   return (
     <div style={{ padding: '2rem' }}>
@@ -286,7 +287,7 @@ function AppointmentDetail() {
           boxShadow: '0 4px 8px rgba(0,0,0,0.05)'
         }}
       >
-        <h2>🧠 AI Summary</h2>
+        <h2>🧠 Overall Patient Health Summary</h2>
         <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
           {aiLoading
             ? 'Generating AI summary…'
@@ -299,7 +300,20 @@ function AppointmentDetail() {
       <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #ccc', borderRadius: '8px' }}>
         <h2>👤 Patient Information</h2>
         <p><b>Name:</b> {patient.name}</p>
-        <p><b>DOB:</b> {patient.dob}</p>
+        <p>
+          <b>Age:</b>{' '}
+          {(() => {
+            const dob = new Date(patient.dob);
+            const now = new Date();
+            let years = now.getFullYear() - dob.getFullYear();
+            const monthDiff = now.getMonth() - dob.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) {
+              years--;
+            }
+            return years;
+          })()}{' '}
+          years
+        </p>
         <p><b>Phone:</b> {patient.phone}</p>
         <p><b>Address:</b> {patient.address}</p>
         <p><b>Preferred Language:</b> {patient.preferredlanguage}</p>
@@ -307,7 +321,28 @@ function AppointmentDetail() {
 
       {/* Vital Signs */}
       <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #ccc', borderRadius: '8px' }}>
-        <h2>📈 Recent Vital Signs</h2>
+      <Box display="flex" alignItems="center" mb={1}>
+        <Typography variant="h5" component="h2">
+          📈 Recent Vital Signs
+        </Typography>
+
+        {recommendation && (
+          <Typography
+            variant="body2"
+            sx={{
+              ml: 1,                  // small horizontal gap
+              fontStyle: 'italic',
+              color: 'blue',
+              display: 'flex',
+              alignItems: 'center',   // vertical center
+            }}
+          >
+            <AutoAwesomeIcon sx={{ mr: 0.5, color: 'red', fontSize: '1rem' }} />
+            {recommendation}
+          </Typography>
+        )}
+      </Box>
+
         {(() => {
           const vitalData = recent_visits
             .filter(v => v.visitdate)
