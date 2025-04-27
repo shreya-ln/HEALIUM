@@ -681,11 +681,10 @@ def get_visit(visit_id):
         .table('questions')
         .select('id, questiontext, status, questionaudio')
         .eq('patient_id', visit['patient_id'])
+        .eq('visit_id', visit['id'])
         .order('daterecorded', desc=True)
         .execute()
     )
-    if not q_resp.data:
-        abort(500, description="Error fetching questions")
     questions = q_resp.data or []
     questions_list = [
         {

@@ -152,7 +152,7 @@ export default function VisitDetail() {
       <Stack spacing={3}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <IconButton onClick={() => navigate(-1)}><ArrowBackIosIcon /></IconButton>
-          <Typography variant="h4">Upcoming Visit Details</Typography>
+          <Typography variant="h4">Visit Details</Typography>
         </Box>
 
         <Chip label={`Date: ${new Date(visit.visit_date).toLocaleDateString()}`} color="secondary" />
