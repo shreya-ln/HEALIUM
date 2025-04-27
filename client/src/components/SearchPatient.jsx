@@ -33,6 +33,8 @@ function SearchPatient() {
     <div style={{ padding: '2rem' }}>
       <h1>🔍 Search Patient</h1>
 
+      <br/>
+      <h6>Enter Patient Name:</h6>
       <input
         type="text"
         name="name"
@@ -42,6 +44,7 @@ function SearchPatient() {
         style={{ marginBottom: '1rem', padding: '0.5rem' }}
       />
       <br/>
+      <h6>Enter Patient DOB (Date of Birth):</h6>
       <input
         type="date"
         name="dob"
@@ -49,6 +52,8 @@ function SearchPatient() {
         onChange={handleChange}
         style={{ marginBottom: '1rem', padding: '0.5rem' }}
       />
+      <br/>
+      <br/>
       <br/>
       <button onClick={handleSearch} style={{ padding: '0.5rem 1rem' }}>
         Search

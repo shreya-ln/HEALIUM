@@ -72,11 +72,32 @@ def get_today_visits():
 @visit_routes.route('/update-visit/<visit_id>', methods=['PATCH'])
 def update_visit(visit_id):
     try:
-        data = request.get_json()
 
-        supabase.table('visits').update(data).eq('id', visit_id).execute()
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        # Only allow these fields to be updated
+        allowed_fields = [
+            'bloodpressure',
+            'oxygenlevel',
+            'sugarlevel',
+            'weight',
+            'height',
+            'doctorrecommendation',
+            'content',            # <--- allow content update
+            'visitsummaryaudio'   # <--- allow audio file URL update
+        ]
+
+        update_data = {field: data[field] for field in allowed_fields if field in data}
+
+        if not update_data:
+            return jsonify({"error": "No valid fields to update"}), 400
+
+        supabase.table('visits').update(update_data).eq('id', visit_id).execute()
 
         return jsonify({"message": "Visit updated successfully"}), 200
+
     except Exception as e:
         print('Error in update_visit:', e)
         return jsonify({'error': 'Internal Server Error'}), 500

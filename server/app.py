@@ -1,6 +1,7 @@
 #server/app.py
 import os
-import io
+import json
+import re
 from flask import Flask, request, jsonify
 from supabase import create_client, Client
 import openai
@@ -14,6 +15,8 @@ from datetime import datetime
 from audio_service import upload_audio_to_supabase, transcribe_with_whisper
 from chat_routes import chat_routes  # <-- import
 from visit_routes import visit_routes
+from image_service import upload_image_to_supabase
+import base64
 
 load_dotenv()
 
@@ -26,6 +29,7 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
+llm = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_current_user():
@@ -35,40 +39,7 @@ def get_current_user():
     return user_id
 
 app.register_blueprint(visit_routes)
-# ---------- signup / signin API endpoints -------------- #
-
-@app.route('/signup', methods=['POST'])
-def signup():
-    data = request.get_json()
-    email = data.get('email')
-    password = data.get('password')
-    role = data.get('role')  # "doctor" or "patient"
-    extra_info = data.get('extra_info')  # dict
-
-    try:
-        # 1. Supabase Auth signup
-        result = supabase.auth.sign_up({
-            "email": email,
-            "password": password
-        })
-
-        user_id = result.user.id
-
-        # 2. Save additional user info to database
-        table = 'doctors' if role == 'doctor' else 'patients'
-        supabase.table(table).insert([{ "id": user_id, **extra_info }]).execute()
-
-        # 3. Check if email verification is required
-        if result.session is None:
-            message = "Verification email sent. Please check your inbox."
-        else:
-            message = "Signup success! You can log in now."
-
-        return jsonify({"message": message}), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
+# ---------- signin / signup API endpoints -------------- #
 @app.route('/signin', methods=['POST'])
 def signin():
     data = request.get_json()
@@ -103,6 +74,38 @@ def signin():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
+@app.route('/signup', methods=['POST'])
+def signup():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+    role = data.get('role')  # "doctor" or "patient"
+    extra_info = data.get('extra_info')  # dict
+
+    try:
+        # 1. Supabase Auth signup
+        result = supabase.auth.sign_up({
+            "email": email,
+            "password": password
+        })
+
+        user_id = result.user.id
+
+        # 2. Save additional user info to database
+        table = 'doctors' if role == 'doctor' else 'patients'
+        supabase.table(table).insert([{ "id": user_id, **extra_info }]).execute()
+
+        # 3. Check if email verification is required
+        if result.session is None:
+            message = "Verification email sent. Please check your inbox."
+        else:
+            message = "Signup success! You can log in now."
+
+        return jsonify({"message": message}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 # ------------------------ #
 @app.route('/api/health')
@@ -410,6 +413,12 @@ def dashboard_data():
         for q in active_qs
     ]
 
+    llm_result = trend_recommendations({
+            "blood_pressure": blood_pressure,
+            "oxygen_level":   oxygen_level,
+            "sugar_level":    sugar_level
+    })
+
     return jsonify({
         "health_summary": latest[0] if latest else {},
         "health_trends": {
@@ -418,7 +427,8 @@ def dashboard_data():
             "sugar_level":    sugar_level
         },
         "medications":        meds,
-        "active_questions":   active_questions
+        "active_questions":   active_questions,
+        "recommendations":    llm_result
     }), 200
 
 @app.route('/get-questions', methods=['GET'])
@@ -543,22 +553,29 @@ def upload_question_audio_for_chat():
 # ─── 5. Get Past Visits (limit 10) ─────────────────────────────────────────────
 @app.route("/get-past-visits", methods=["GET"])
 def get_past_visits():
-    user_id = get_current_user()
-    if not user_id:
+    patient_id = get_current_user()
+    if not patient_id:
         return jsonify({"error": "unauthorized"}), 401
 
+    # 1) Build “now” ISO string (UTC)
+    now_iso = datetime.utcnow().isoformat()
+
+    # 2) Query only visits before today, most recent first, limit 10
     resp = (
         supabase
         .table("visits")
         .select("*")
-        .eq("patient_id", user_id)
+        .eq("patient_id", patient_id)
+        .lt("visitdate", now_iso)          # <— only dates strictly before now
         .order("visitdate", desc=True)
-        .limit(10)                        # <— only grab the latest 10
+        .limit(10)
         .execute()
     )
+    if not resp.data:
+        abort(500, description="Error fetching past visits")
 
     visits = resp.data or []
-    return jsonify(visits)
+    return jsonify(visits), 200
 
 # ─── 6. Upload OCR Report ────────────────────────────────────────────────────
 @app.route("/upload-ocr-report", methods=["POST"])
@@ -644,16 +661,42 @@ def get_visit(visit_id):
     if not resp.data:
         abort(404, description="Visit not found")
 
-    # 3) Return the visit record
     visit = resp.data
+
+    # 2) Resolve public audio URL if present
     audio_url = visit.get('visitsummaryaudio')
     if audio_url:
-        audio_url = audio_url.lstrip('/') 
-        audio_url = supabase.storage.from_(
-            os.getenv("SUPABASE_AUDIO_BUCKET", "audio-uploads")
-        ).get_public_url(audio_url)
-        audio_url = audio_url.split('?', 1)[0]
-    print("Public: ", audio_url)
+        audio_path = audio_url.lstrip('/')
+        audio_url = (
+            supabase
+            .storage
+            .from_(os.getenv("SUPABASE_AUDIO_BUCKET", "audio-uploads"))
+            .get_public_url(audio_path)
+            .split('?', 1)[0]
+        )
+
+    # 3) Fetch all questions this patient has asked
+    q_resp = (
+        supabase
+        .table('questions')
+        .select('id, questiontext, status, questionaudio')
+        .eq('patient_id', visit['patient_id'])
+        .eq('visit_id', visit['id'])
+        .order('daterecorded', desc=True)
+        .execute()
+    )
+    questions = q_resp.data or []
+    questions_list = [
+        {
+            'id': f"q{q['id']}",
+            'transcript': q['questiontext'],
+            'status': q['status'],
+            'audioUrl': q['questionaudio']
+        }
+        for q in questions
+    ]
+
+    # 4) Return combined payload
     return jsonify({
         'visit_id':             visit['id'],
         'patient_id':           visit['patient_id'],
@@ -666,7 +709,8 @@ def get_visit(visit_id):
         'weight':               visit.get('weight'),
         'height':               visit.get('height'),
         'audio_summary_url':    audio_url,
-        'doctor_recommendation': visit.get('doctorrecommendation')
+        'doctor_recommendation': visit.get('doctorrecommendation'),
+        'questions':            questions_list
     }), 200
 
 app.register_blueprint(chat_routes)
@@ -812,6 +856,209 @@ def create_appointment():
     except Exception as e:
         print('Error in create_appointment:', e)
         return jsonify({'error': 'Internal Server Error'}), 500
+
+# summarize audio
+@app.route('/summarize-audio', methods=['POST'])
+def summarize_audio():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    f = request.files.get('file')
+    if not f:
+        return jsonify({"error": "no file uploaded"}), 400
+
+    # 1. Transcribe
+    f.stream.seek(0)
+    raw = f.read()
+    try:
+        # Upload first (need fresh FileStorage because we just read it)
+        f.stream.seek(0)
+        audio_url = upload_audio_to_supabase(
+            supabase,
+            os.getenv("SUPABASE_AUDIO_BUCKET", "audio-uploads"),
+            f
+        )
+    except Exception as e:
+        return jsonify({"error": f"Storage upload failed: {e}"}), 500
+    
+
+    try:
+        transcript = transcribe_with_whisper(raw, f.filename)
+    except Exception as e:
+        return jsonify({"error": f"Transcription failed: {e}"}), 500
+
+    # 2. Summarize
+    try:
+        client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "Summarize the following medical visit notes in a clear, short paragraph suitable for a patient summary. Keep it easy to understand, concise, and professional."},
+                {"role": "user", "content": transcript}
+            ],
+            temperature=0.5
+        )
+        summary = resp.choices[0].message.content
+    except Exception as e:
+        return jsonify({"error": f"Summarization failed: {e}"}), 500
+
+    return jsonify({
+        "transcript": transcript,
+        "summary": summary,
+        "audioUrl": audio_url
+    }), 200
+
+def trend_recommendations(trendData):
+    """
+    Expects JSON body:
+    {
+      "blood_pressure": [ {"date":"2025-01-01","value":120}, ... ],
+      "oxygen_level":   [ {"date":"2025-01-01","value":98},  ... ],
+      "sugar_level":    [ {"date":"2025-01-01","value":90},  ... ]
+    }
+    Returns:
+    {
+      "blood_pressure": "...",
+      "oxygen_level":   "...",
+      "sugar_level":    "..."
+    }
+    """
+    # validate presence of keys
+    for key in ("blood_pressure", "oxygen_level", "sugar_level"):
+        if key not in trendData:
+            return jsonify({"error": f"Missing '{key}' array in payload."}), 400
+
+    # build prompt
+    prompt = (
+        "Here are a patient’s health trends for three metrics:\n"
+        f"{json.dumps(trendData)}\n\n"
+        "For each metric—blood_pressure, oxygen_level, sugar_level—"
+        "provide a single-sentence recommendation (max 8 words) that either "
+        "flags an issue or affirms a healthy range. "
+        "Return only a JSON object with keys "
+        "'blood_pressure_info', 'oxygen_level_info', and 'sugar_level_info'."
+    )
+
+    # call the LLM
+    resp = llm.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a concise healthcare assistant."},
+            {"role": "user",   "content": prompt}
+        ],
+        temperature=0.5
+    )
+
+    print("LLM Response: ", resp.choices[0].message.content)
+    raw = resp.choices[0].message.content.strip()
+    m = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw)
+    json_str = m.group(1) if m else raw
+    # parse LLM output
+    try:
+        recs = json.loads(json_str)
+    except Exception:
+        # fallback if LLM response isn't valid JSON
+        recs = {
+            "blood_pressure_info": "Unable to generate recommendation.",
+            "oxygen_level_info":   "Unable to generate recommendation.",
+            "sugar_level_info":    "Unable to generate recommendation."
+        }
+
+    print("Final response: ", recs)
+    return recs
+
+# summarize image
+@app.route('/summarize-image', methods=['POST'])
+def summarize_image():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    f = request.files.get('file')
+    if not f:
+        return jsonify({"error": "no file uploaded"}), 400
+
+    # 1. Upload to Supabase Storage
+    try:
+        image_url = upload_image_to_supabase(
+            supabase,
+            os.getenv("SUPABASE_IMAGE_BUCKET", "image-uploads"),
+            f
+        )
+    except Exception as e:
+        print('Image upload error:', e)
+        return jsonify({"error": "Failed to upload image"}), 500
+
+    # 2. OCR and Summarization
+    try:
+        client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+        vision_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a medical assistant. Analyze the uploaded medical report image and generate a short, professional summary of its contents (like imaging results, ECG findings, or written notes)."
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Please summarize the contents of this medical report image concisely:"
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image_url
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=500
+        )
+
+        summary = vision_response.choices[0].message.content
+
+    except Exception as e:
+        print('Image summarization error:', e)
+        return jsonify({"error": f"Failed to summarize image: {e}"}), 500
+
+    return jsonify({
+        "summary": summary,
+        "imageUrl": image_url,
+        "reporttype": "Report"
+    }), 200
+
+
+@app.route('/add-report', methods=['POST'])
+def add_report():
+    try:
+        data = request.get_json()
+        patient_id = data.get('patient_id')  # 👈 get patient_id from frontend
+        report_content = data.get('report_content')
+        report_type = data.get('report_type')
+
+        if not patient_id or not report_content or not report_type:
+            return jsonify({"error": "Missing fields"}), 400
+
+        # Save to Supabase
+        supabase.table('reports').insert({
+            'patient_id': patient_id,
+            'reportcontent': report_content,
+            'reporttype': report_type,
+            'reportdate': datetime.utcnow().isoformat()
+        }).execute()
+
+        return jsonify({"message": "Report added successfully"}), 200
+
+    except Exception as e:
+        print('Error in add_report:', e)
+        return jsonify({"error": "Internal Server Error"}), 500
+
+
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 4000))
