@@ -124,6 +124,10 @@ export default function VisitDetail() {
     const file = new File([blob], `question_${Date.now()}.${ext}`, { type: mimeType });
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('visit_id', visitId);
+    formData.append('doctor_id', visit.doctor_id);
+    console.log("visit_id: ", visitId)
+    console.log("doctor_id: ", visit.doctor_id);
 
     setIsUploading(true);
     try {

@@ -527,7 +527,9 @@ def upload_question_audio():
         "questiontext":  transcript,
         "questionaudio": public_url,
         "status":        "Not",
-        "daterecorded":  datetime.utcnow().isoformat()
+        "daterecorded":  datetime.utcnow().isoformat(),
+        "doctor_id":     request.form.get('doctor_id'),
+        "visit_id":      request.form.get('visit_id')
     }
     supabase.table("questions").insert(record).execute()
 
@@ -1248,6 +1250,7 @@ def visit_detail(visit_id):
         .select('id, questiontext, status, questionaudio')
         .eq('visit_id', visit['id'])
         .eq('patient_id', visit['patient_id'])
+        .eq('doctor_id', visit['doctor_id'])
         .order('daterecorded', desc=True)
         .execute()
     )
