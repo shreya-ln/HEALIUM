@@ -24,7 +24,6 @@ import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import NoteAddIcon from '@mui/icons-material/NoteAdd';
-import { useNavigate } from 'react-router-dom';
 
 function AppointmentDetail() {
   const { user } = useAuth();
@@ -46,8 +45,6 @@ function AppointmentDetail() {
   const [uploadedReportSummary, setUploadedReportSummary] = useState('');
   const [uploadedReportType, setUploadedReportType] = useState('');
   const [uploadedReportImageUrl, setUploadedReportImageUrl] = useState('');
-
-  const navigate = useNavigate();
 
 
   const [uploadedReportId, setUploadedReportId] = useState(null);
