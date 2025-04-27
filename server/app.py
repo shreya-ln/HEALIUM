@@ -895,6 +895,7 @@ def summarize_audio():
             f
         )
     except Exception as e:
+        print("Upload error:", e)
         return jsonify({"error": f"Storage upload failed: {e}"}), 500
 
 
