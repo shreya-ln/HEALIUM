@@ -41,7 +41,6 @@ function AppointmentDetail() {
     height: '',
     doctorrecommendation: '',
   });
-
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -50,11 +49,13 @@ function AppointmentDetail() {
         setVisit(visitRes.data);
 
         if (visitRes.data?.patient_id) {
-          // 2) DB summary
-          const dataRes = await axios.get(`/patient-summary/${visitRes.data.patient_id}`);
+          // 2) DB summary (Authorization 추가)
+          const dataRes = await axios.get(`/patient-summary/${visitRes.data.patient_id}`, {
+            headers: { Authorization: user?.user_id }
+          });
           setPatientSummary(dataRes.data);
 
-          // 3) AI summary
+          // 3) AI summary (기존처럼)
           const aiRes = await axios.get(`/appointment-summary/${visitRes.data.patient_id}`);
           setAiSummary(aiRes.data.summary);
         }
@@ -117,10 +118,10 @@ function AppointmentDetail() {
     const blob = new Blob(audioChunksRef.current, { type: mimeType });
     const ext = mimeType.split('/')[1].split(';')[0];
     const file = new File([blob], `visit_summary.${ext}`, { type: mimeType });
-  
+
     const formData = new FormData();
     formData.append('file', file);
-  
+
     try {
       const res = await axios.post('/summarize-audio', formData, {
         headers: {
@@ -128,11 +129,11 @@ function AppointmentDetail() {
           'Content-Type': 'multipart/form-data'
         }
       });
-  
+
       setRecordingTranscript(res.data.summary);  // store summary text
       setRecordingAudioUrl(res.data.audioUrl);    // store uploaded audio URL
-      setRecordingSummary(res.data.summary);   
-  
+      setRecordingSummary(res.data.summary);
+
     } catch (err) {
       console.error('Failed to summarize audio', err);
       alert('Failed to process recording.');
@@ -142,10 +143,10 @@ function AppointmentDetail() {
   const handleUploadImage = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-  
+
     const formData = new FormData();
     formData.append('file', file);
-  
+
     try {
       const res = await axios.post('/summarize-image', formData, {
         headers: {
@@ -153,18 +154,18 @@ function AppointmentDetail() {
           'Content-Type': 'multipart/form-data'
         }
       });
-  
+
       setUploadedReportSummary(res.data.summary);  // summary of the image (e.g., "ECG normal")
       setUploadedReportType(res.data.reporttype);  // report type (e.g., "ECG Report")
       setUploadedReportImageUrl(res.data.imageUrl);  // public image URL if you want to show it (optional)
-  
+
     } catch (err) {
       console.error('Failed to process image', err);
       alert('Failed to upload and summarize image.');
     }
   };
-  
-  
+
+
 
   const handleRecordingButtonClick = () => {
     if (isRecording) {
@@ -191,7 +192,7 @@ function AppointmentDetail() {
           'Content-Type': 'application/json'
         }
       });
-  
+
       // 2) If a report was uploaded, add it to 'reports' table
     if (uploadedReportSummary && uploadedReportType) {
       await axios.post('/add-report', {
@@ -218,13 +219,13 @@ function AppointmentDetail() {
     // Refresh visit
     const updatedVisitRes = await axios.get(`/visit/${id}`);
     setVisit(updatedVisitRes.data);
-  
+
     } catch (err) {
       console.error('Failed to update visit', err);
       alert('Failed to update visit');
     }
   };
-  
+
   if (!visit || !patientSummary) return (
     <Box
       sx={{

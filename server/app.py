@@ -140,33 +140,17 @@ def doctor_profile():
 
     return jsonify(resp.data), 200
 
-
 @app.route('/pending-questions-for-doctor', methods=['GET'])
 def pending_questions_for_doctor():
     user_id = get_current_user()
     if not user_id:
         return jsonify({"error": "unauthorized"}), 401
 
-
-    visits_resp = (
-        supabase
-        .table('visits')
-        .select('patient_id')
-        .eq('doctorid', user_id)
-        .execute()
-    )
-
-    patient_ids = list({v['patientid'] for v in visits_resp.data}) if visits_resp.data else []
-
-    if not patient_ids:
-        return jsonify([]), 200
-
-    # pull unanswered questions
     questions_resp = (
         supabase
         .table('questions')
-        .select('id, patientid, questiontext, daterecorded')
-        .in_('patientid', patient_ids)
+        .select('id, patient_id, questiontext, daterecorded')
+        .eq('doctor_id', user_id)
         .eq('status', 'Not')
         .order('daterecorded', desc=True)
         .execute()
@@ -174,6 +158,9 @@ def pending_questions_for_doctor():
 
     questions = questions_resp.data or []
     return jsonify(questions), 200
+
+
+
 # Fetch the list of patients
 @app.route('/list-patients', methods=['GET'])
 def list_patients():
@@ -760,47 +747,75 @@ def get_patient_by_id(patient_id):
         print(e)
         return jsonify({'error': 'Internal Server Error'}), 500
 # app.py
-
 @app.route('/patient-summary/<patient_id>', methods=['GET'])
-def get_patient_summary(patient_id):
-    try:
-        # 1. 환자 기본정보
-        patient = supabase.table('patients').select(
-            'id, name, dob, phone, address, preferredlanguage'
-        ).eq('id', patient_id).single().execute()
+def patient_summary(patient_id):
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
 
-        # 2. medications
-        medications = supabase.table('medications').select(
-            'medicationname, dosage, frequency, startdate, enddate, notes'
-        ).eq('patient_id', patient_id).execute()
+    # 1. 환자 기본 정보
+    patient_resp = (
+        supabase
+        .table('patients')
+        .select('id, name, dob, phone, address, preferredlanguage')
+        .eq('id', patient_id)
+        .single()
+        .execute()
+    )
 
-        # 3. visit history
-        visits = supabase.table('visits').select(
-            'visitdate, bloodpressure, oxygenlevel, sugarlevel'
-        ).eq('patient_id', patient_id).order('visitdate', desc=True).limit(3).execute()
+    if not patient_resp.data:
+        return jsonify({"error": "Patient not found"}), 404
 
-        # 4. ocr reports it only pulls up to three
-        reports = supabase.table('reports').select(
-            'reporttype, reportcontent, reportdate'
-        ).eq('patient_id', patient_id).order('reportdate', desc=True).limit(3).execute()
+    # 2. 최근 visits
+    visits_resp = (
+        supabase
+        .table('visits')
+        .select('id, visitdate, bloodpressure, oxygenlevel, sugarlevel')
+        .eq('patient_id', patient_id)
+        .order('visitdate', desc=True)
+        .limit(5)
+        .execute()
+    )
 
-        # 5. questions
-        questions = supabase.table('questions').select(
-            'questiontext, daterecorded'
-        ).eq('patient_id', patient_id).eq('status', 'pending').execute()
+    # 3. medications
+    meds_resp = (
+        supabase
+        .table('medications')
+        .select('medicationid, medicationname, dosage, frequency, startdate, enddate, notes')
+        .eq('patient_id', patient_id)
+        .order('startdate', desc=True)
+        .execute()
+    )
 
-        return jsonify({
-            'patient': patient.data,
-            'medications': medications.data,
-            'recent_visits': visits.data,
-            'reports': reports.data,
-            'pending_questions': questions.data,
-        }), 200
+    # 4. reports
+    reports_resp = (
+        supabase
+        .table('reports')
+        .select('id, reporttype, reportcontent, reportdate')
+        .eq('patient_id', patient_id)
+        .order('reportdate', desc=True)
+        .execute()
+    )
 
-    except Exception as e:
-        print('Error in patient-summary:', e)
-        return jsonify({'error': 'Internal Server Error'}), 500
+    # 5. pending questions (✅ doctor_id도 체크 추가!!)
+    questions_resp = (
+        supabase
+        .table('questions')
+        .select('id, patient_id, doctor_id, questiontext, daterecorded')
+        .eq('patient_id', patient_id)
+        .eq('doctor_id', user_id)       # 🔥 여기 추가
+        .eq('status', 'Not')
+        .order('daterecorded', desc=True)
+        .execute()
+    )
 
+    return jsonify({
+        "patient": patient_resp.data,
+        "recent_visits": visits_resp.data or [],
+        "medications": meds_resp.data or [],
+        "reports": reports_resp.data or [],
+        "pending_questions": questions_resp.data or []
+    }), 200
 
 
 @app.route('/search-patient', methods=['POST'])
@@ -881,7 +896,7 @@ def summarize_audio():
         )
     except Exception as e:
         return jsonify({"error": f"Storage upload failed: {e}"}), 500
-    
+
 
     try:
         transcript = transcribe_with_whisper(raw, f.filename)
