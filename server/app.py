@@ -1131,7 +1131,7 @@ def health_joke():
     except Exception as e:
         print('Error generating health joke:', e)
         return jsonify({"error": "Failed to generate joke"}), 500
-      
+
 @app.route('/update-visit/<visit_id>', methods=['PATCH'])
 def update_visit(visit_id):
     user_id = get_current_user()
@@ -1145,7 +1145,7 @@ def update_visit(visit_id):
     try:
         update_fields = {}
 
-        
+
         for field in ['bloodpressure', 'oxygenlevel', 'sugarlevel', 'weight', 'height', 'doctorrecommendation', 'content', 'visitsummaryaudio']:
             if field in data:
                 update_fields[field] = data[field]
@@ -1160,6 +1160,99 @@ def update_visit(visit_id):
     except Exception as e:
         print('Error updating visit:', e)
         return jsonify({"error": "Internal Server Error"}), 500
+
+
+@app.route('/visit-detail/<visit_id>', methods=['GET'])
+def visit_detail(visit_id):
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    # 1) Fetch Visit
+    visit_resp = (
+        supabase
+        .table('visits')
+        .select('id, patient_id, doctor_id, visitdate, content, bloodpressure, oxygenlevel, sugarlevel, weight, height, visitsummaryaudio, doctorrecommendation')
+        .eq('id', visit_id)
+        .single()
+        .execute()
+    )
+
+    if not visit_resp.data:
+        return jsonify({'error': 'Visit not found'}), 404
+
+    visit = visit_resp.data
+
+    # 2) Resolve public audio URL if any
+    audio_url = None
+    if visit.get('visitsummaryaudio'):
+        path = visit['visitsummaryaudio'].lstrip('/')
+        audio_url = supabase.storage.from_(os.getenv('SUPABASE_AUDIO_BUCKET', 'audio-uploads')).get_public_url(path).split('?', 1)[0]
+
+    # 3) Fetch all questions for this visit
+    q_resp = (
+        supabase
+        .table('questions')
+        .select('id, questiontext, status, questionaudio')
+        .eq('visit_id', visit['id'])
+        .eq('patient_id', visit['patient_id'])
+        .order('daterecorded', desc=True)
+        .execute()
+    )
+    questions = [
+        {
+            'id': f"q{q['id']}",
+            'transcript': q['questiontext'],
+            'status': q['status'],
+            'audioUrl': q['questionaudio']
+        }
+        for q in (q_resp.data or [])
+    ]
+
+    # 4) Fetch all medications for this patient
+    meds_resp = (
+        supabase
+        .table('medications')
+        .select('medicationid, medicationname, dosage, frequency, startdate, enddate, notes')
+        .eq('patient_id', visit['patient_id'])
+        .order('startdate', desc=False)
+        .execute()
+    )
+    medications = meds_resp.data or []
+
+    # 5) Split medications: newly prescribed vs ongoing
+    visit_date = visit.get('visitdate', '').split('T')[0]
+    newly_prescribed = []
+    ongoing_medications = []
+
+    for med in medications:
+        med_start_date = (med.get('startdate') or '').split('T')[0]
+        if med_start_date == visit_date:
+            newly_prescribed.append(med)
+        else:
+            ongoing_medications.append(med)
+
+    # 6) Return final combined JSON
+    return jsonify({
+        'visit': {
+            'visit_id': visit['id'],
+            'patient_id': visit['patient_id'],
+            'doctor_id': visit['doctor_id'],
+            'visit_date': visit['visitdate'],
+            'summary': visit.get('content'),
+            'blood_pressure': visit.get('bloodpressure'),
+            'oxygen_level': visit.get('oxygenlevel'),
+            'sugar_level': visit.get('sugarlevel'),
+            'weight': visit.get('weight'),
+            'height': visit.get('height'),
+            'audio_summary_url': audio_url,
+            'doctor_recommendation': visit.get('doctorrecommendation')
+        },
+        'questions': questions,
+        'newly_prescribed': newly_prescribed,
+        'ongoing_medications': ongoing_medications
+    }), 200
+
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 4000))
