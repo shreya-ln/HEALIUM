@@ -27,8 +27,8 @@ function App() {
     <AuthProvider>
       <Router>
       <Routes>
-  <Route path="/signup" element={<SignupForm />} />
   <Route path="/signin" element={<SigninForm />} />
+  <Route path="/signup" element={<SignupForm />} />
   <Route path="/patient/dashboard" element={
     <ProtectedRoute>
       <PatientDashboard />
@@ -59,7 +59,7 @@ function App() {
         <CreateAppointment />
       </ProtectedRoute>
     } />
-  <Route path="*" element={<Navigate to="/signup" />} />
+  <Route path="*" element={<Navigate to="/signin" />} />
           <Route path="/doctor/dashboard" element={
             <ProtectedRoute>
               <DoctorDashboard />
@@ -82,7 +82,7 @@ function App() {
            }
           />
           <Route path="/ask-ai" element={<ChatPage />} />
-          <Route path="*" element={<Navigate to="/signup" />} />
+          <Route path="*" element={<Navigate to="/signin" />} />
        </Routes>
       </Router>
     </AuthProvider>
