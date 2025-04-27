@@ -186,9 +186,11 @@ export default function VisitDetail() {
             <Typography>{visit.doctor_recommendation}</Typography>
           </Paper>
         )}
-{(newlyPrescribed.length > 0 || ongoingMedications.length > 0) && (
-  <Paper elevation={3} sx={{ p: 3 }}>
-    <Typography variant="h6" gutterBottom>Medications</Typography>
+        <Accordion elevation={3} sx={{ bgcolor: 'background.paper' }}>
+  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+    <Typography variant="h6">Medications</Typography>
+  </AccordionSummary>
+  <AccordionDetails>
 
     {/* Newly Prescribed */}
     <Box sx={{ mb: 2 }}>
@@ -203,7 +205,9 @@ export default function VisitDetail() {
           </Box>
         ))
       ) : (
-        <Typography sx={{ pl: 2, mt: 1, fontStyle: 'italic' }}>No newly prescribed medications for this visit.</Typography>
+        <Typography sx={{ pl: 2, mt: 1, fontStyle: 'italic' }}>
+          No newly prescribed medications for this visit.
+        </Typography>
       )}
     </Box>
 
@@ -220,12 +224,14 @@ export default function VisitDetail() {
           </Box>
         ))
       ) : (
-        <Typography sx={{ pl: 2, mt: 1, fontStyle: 'italic' }}>No ongoing medications.</Typography>
+        <Typography sx={{ pl: 2, mt: 1, fontStyle: 'italic' }}>
+          No ongoing medications.
+        </Typography>
       )}
     </Box>
-  </Paper>
-)}
 
+  </AccordionDetails>
+</Accordion>
         {/* Audio Recording */}
         <Paper elevation={3} sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>Ask a Question to the Doctor!</Typography>
