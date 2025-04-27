@@ -336,7 +336,7 @@ export default function PatientDashboard() {
           </Box>
 
         {/* Row 3: BMI Calculator + Health Dad Joke */}
-<Box sx={{ display: 'flex', gap: 2, mb: 6 }}>
+<Box sx={{ display: 'flex', gap: 2 }}>
   
   {/* BMI Card */}
   <Box sx={{ flex: '1 1 50%' }}>
@@ -380,16 +380,15 @@ export default function PatientDashboard() {
   <Box sx={{ flex: '1 1 50%' }}>
     <Card sx={{
       background: 'linear-gradient(135deg, #f48fb1 0%, #f06292 100%)',
-      color: 'white',
+      color: 'black',
       borderRadius: 8,
       p: 3,
-      height: 350,
       boxShadow: '0px 4px 12px rgba(0,0,0,0.1)',
       transition: 'transform 0.2s',
       '&:hover': { transform: 'scale(1.02)' }
     }}>
       <CardContent>
-        <Typography variant="h6" gutterBottom>Dad Joke of the Day 😂 about Health ofcourse</Typography>
+        <Typography variant="h6" gutterBottom>Health Joke of the Day 🍎</Typography>
         <Typography variant="body1" sx={{ fontStyle: 'italic' }}>
           {healthJoke || 'Loading joke...'}
         </Typography>
