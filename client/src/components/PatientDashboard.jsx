@@ -160,7 +160,7 @@ export default function PatientDashboard() {
         
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
           <Avatar sx={{ width: 80, height: 80, mb: 2 }} />
-          <Typography variant="h6">{patientProfile?.name || 'Your Name'}</Typography>
+          <Typography variant="h6" sx={{fontWeight: 'bold'}}>{patientProfile?.name || 'Your Name'}</Typography>
           <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
             {patientProfile?.dob || 'MM/DD/YYYY'}
           </Typography>
