@@ -1,4 +1,4 @@
-My Health Buddy
+HEALIUM  
 
 Set up:  
 cd client  
