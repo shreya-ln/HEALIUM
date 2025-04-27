@@ -93,16 +93,33 @@ export default function PatientDashboard() {
     fetchData();
   }, [user?.user_id]);
 
-  if (loading) return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
-      <CircularProgress />
-    </Box>
-  );
-  if (error || !dashboardData) return (
-    <Box sx={{ p: 4 }}>
-      <Typography color="error">{error || 'No data available'}</Typography>
-    </Box>
-  );
+  // If we’re still waiting on data, show the spinner
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // Once loading is false, if there’s an error — show it
+  if (error) {
+    return (
+      <Box sx={{ p: 4 }}>
+        <Typography color="error">{error}</Typography>
+      </Box>
+    );
+  }
+
+  // If no error, but dashboardData is somehow null/undefined,
+  // show a friendly “no data” message (optional)
+  if (!dashboardData) {
+    return (
+      <Box sx={{ p: 4 }}>
+        <Typography color="textSecondary">No data available.</Typography>
+      </Box>
+    );
+  }
 
   const handleBmiCalculate = async () => {
     try {
@@ -150,7 +167,7 @@ export default function PatientDashboard() {
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>Patient Dashboard</Typography>
           <Button variant="contained" onClick={() => navigate('/ask-ai')} sx={{ bgcolor: 'purple' }}>
-            Ask Our Agent!
+            Talk to Agent!
           </Button>
         </Toolbar>
       </AppBar>

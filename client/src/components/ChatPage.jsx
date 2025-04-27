@@ -128,7 +128,7 @@ export default function ChatPage() {
             <ArrowBackIcon />
           </IconButton>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Chat with AI Assistant
+            Hey there! You can either Talk or Chat with our AI Assistant
           </Typography>
         </Toolbar>
       </AppBar>
