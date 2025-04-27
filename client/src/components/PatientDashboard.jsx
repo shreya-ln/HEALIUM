@@ -23,10 +23,17 @@ import ListItemButton from '@mui/material/ListItemButton';
 import Chip from '@mui/material/Chip';
 import Fab from '@mui/material/Fab';
 
-// import PersonIcon from '@mui/icons-material/Person'; 
+// import PersonIcon from '@mui/icons-material/Person';
 // import SettingsIcon from '@mui/icons-material/Settings';
+import Avatar from '@mui/material/Avatar';
 import ChatIcon from '@mui/icons-material/Chat';
 import MedicationIcon from '@mui/icons-material/Medication';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import Accordion from '@mui/material/Accordion';
+import AccordionSummary from '@mui/material/AccordionSummary';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ListItem from '@mui/material/ListItem';
 
 import {
   ResponsiveContainer,
@@ -42,18 +49,18 @@ const drawerWidth = 220;
 
 export default function PatientDashboard() {
   const { user } = useAuth();
-  const token = user?.user_id;
   const navigate = useNavigate();
 
   const [dashboardData, setDashboardData] = useState(null);
   const [recentVisits, setRecentVisits] = useState([]);
   const [upcomingVisits, setUpcomingVisits] = useState([]);
+  const [patientProfile, setPatientProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [trendRecs, setTrendRecs] = useState({
-      blood_pressure: "",
-      oxygen_level: "",
-      sugar_level: ""
+    blood_pressure: "",
+    oxygen_level: "",
+    sugar_level: ""
   });
 
   const [bmiWeight, setBmiWeight] = useState('');
@@ -62,36 +69,29 @@ export default function PatientDashboard() {
   const [healthJoke, setHealthJoke] = useState('');
 
   useEffect(() => {
-    if (!token) return;
-    (async () => {
+    const fetchData = async () => {
+      if (!user?.user_id) return;
       try {
-        const [dashRes, visitsRes, upcomingRes, jokeRes] = await Promise.all([
-          axios.get('/dashboard-data', { headers: { Authorization: token }}),
-          axios.get('/get-past-visits', { headers: { Authorization: token }}),
-          axios.get('/upcoming-visits', { headers: { Authorization: token }}),
-          axios.get('/health-joke', { headers: { Authorization: token }})
+        const [dashRes, visitsRes, upcomingRes, jokeRes, profileRes] = await Promise.all([
+          axios.get('/dashboard-data', { headers: { Authorization: user.user_id } }),
+          axios.get('/get-past-visits', { headers: { Authorization: user.user_id } }),
+          axios.get('/upcoming-visits', { headers: { Authorization: user.user_id }}),
+          axios.get('/health-joke', { headers: { Authorization: user.user_id } }),
+          axios.get(`/patient-profile/${user.user_id}`, { headers: { Authorization: user.user_id } })
         ]);
         setDashboardData(dashRes.data);
         setRecentVisits(visitsRes.data);
         setUpcomingVisits(upcomingRes.data);
         setHealthJoke(jokeRes.data.joke);
-
-        // const { blood_pressure, oxygen_level, sugar_level } = dashRes.data.health_trends;
-        // const recRes = await axios.post(
-        //   '/trend-recommendations',
-        //   { blood_pressure, oxygen_level, sugar_level },
-        //   { headers: { Authorization: token }}
-        // );
-        // setTrendRecs(recRes.data);
-        console.log("Response: ", trendRecs);
-        console.log("Response 2: ", dashRes.data.recommendations);
-      } catch {
-        setError('Failed to load dashboard');
+        setPatientProfile(profileRes.data.patient_info || {});
+      } catch (err) {
+        console.error('Failed to fetch dashboard data', err);
       } finally {
         setLoading(false);
       }
-    })();
-  }, [token]);
+    };
+    fetchData();
+  }, [user?.user_id]);
 
   if (loading) return (
     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
@@ -104,27 +104,26 @@ export default function PatientDashboard() {
     </Box>
   );
 
-  
-
   const handleBmiCalculate = async () => {
-  try {
-    const res = await axios.post('/calculate-bmi', {
-      weight: bmiWeight,
-      height: bmiHeight
-    }, {
-      headers: { Authorization: user?.user_id }
-    });
-    setBmiResult(res.data.bmi_result);
-  } catch (err) {
-    console.error('Failed to calculate BMI', err);
-    alert('Failed to calculate BMI');
-  }
+    try {
+      const res = await axios.post('/calculate-bmi', {
+        weight: bmiWeight,
+        height: bmiHeight
+      }, {
+        headers: { Authorization: user?.user_id }
+      });
+      setBmiResult(res.data.bmi_result);
+    } catch (err) {
+      console.error('Failed to calculate BMI', err);
+      alert('Failed to calculate BMI');
+    }
   };
 
   const {
     medications,
     health_trends: { blood_pressure, oxygen_level, sugar_level },
-    recommendations: { blood_pressure_info, oxygen_level_info, sugar_level_info}
+    recommendations: { blood_pressure_info, oxygen_level_info, sugar_level_info },
+    reports,
   } = dashboardData;
 
   const bloodPressureData = blood_pressure.map(bp => {
@@ -147,10 +146,10 @@ export default function PatientDashboard() {
     <Box sx={{ display: 'flex', backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
       <CssBaseline />
 
-      <AppBar position="fixed" sx={{ zIndex: theme => theme.zIndex.drawer + 1, bgcolor: '#fff', color: 'black' }}>
+      <AppBar position="fixed" sx={{ zIndex: theme => theme.zIndex.drawer + 1, bgcolor: 'linear-gradient(135deg, #009688 30%, #4DB6AC 100%)', color: '#fff' }}>
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>Patient Dashboard</Typography>
-          <Button variant="contained" onClick={() => navigate('/ask-ai')} sx={{ bgcolor: '#1976d2' }}>
+          <Button variant="contained" onClick={() => navigate('/ask-ai')} sx={{ bgcolor: 'purple' }}>
             Ask Our Agent!
           </Button>
         </Toolbar>
@@ -161,12 +160,31 @@ export default function PatientDashboard() {
         sx={{
           width: drawerWidth,
           flexShrink: 0,
-          '& .MuiDrawer-paper': { width: drawerWidth, boxSizing: 'border-box', bgcolor: '#fafafa' }
+          '& .MuiDrawer-paper': { width: drawerWidth, boxSizing: 'border-box', bgcolor: '#fafafa', pt: 2 }
         }}
       >
         <Toolbar />
-        
-        <Divider />
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
+          <Avatar sx={{ width: 80, height: 80, mb: 2 }} />
+          <Typography variant="h6" sx={{fontWeight: 'bold'}}>{patientProfile?.name || 'Your Name'}</Typography>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+            {patientProfile?.dob || 'MM/DD/YYYY'}
+          </Typography>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+            {patientProfile?.email || 'email@example.com'}
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            {patientProfile?.phone || '234-567-8900'}
+          </Typography>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+            {patientProfile?.address || '123 Muffin Lane, City, State, Zip'}
+          </Typography>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+            {patientProfile?.preferredlanguage || 'Language'}
+          </Typography>
+        </Box>
+        <Divider sx={{ my: 2 }} />
         <Box sx={{ p: 2, textAlign: 'center' }}>
     <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
       Hi There!
@@ -178,158 +196,244 @@ export default function PatientDashboard() {
 
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, p: 5 }}>
+      <Box sx={{ flexGrow: 1, p: 3 }}>
         <Toolbar />
+        <Typography variant="h5">Welcome, {patientProfile?.name || 'Patient'}!</Typography>
+        <Typography variant="body1" sx={{ mt: 2 }}>
+          Here you can view your health trends, upcoming visits, and more.
+        </Typography>
 
-        {/* Row 1: Medications + Trends */}
-        <Box sx={{ display: 'flex', gap: 2, mb: 6 }}>
-          <Box sx={{ flex: '1 1 25%' }}>
-            <Card sx={cardStyles('linear-gradient(135deg, #7E57C2 0%, #9575CD 100%)')}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>My Medications</Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {medications.map(m => (
-                    <Chip
-                      key={m.medicationid}
-                      icon={<MedicationIcon />}
-                      label={`${m.medicationname} (${m.dosage})`}
-                      variant="filled"
-                      sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }}
-                    />
-                  ))}
-                </Box>
-              </CardContent>
-            </Card>
-          </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, mt: 4 }}>
+          {/* Row 1: Medications + Trends */}
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ flex: '1 1 25%' }}>
+              <Card sx={cardStyles('linear-gradient(135deg, #7E57C2 0%, #9575CD 100%)')}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>My Medications</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {medications.map(m => (
+                      <Chip
+                        key={m.medicationid}
+                        icon={<MedicationIcon />}
+                        label={`${m.medicationname} (${m.dosage})`}
+                        variant="filled"
+                        sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }}
+                      />
+                    ))}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
 
-          
+            <Box sx={{ flex: '1 1 25%' }}>
+              <Card sx={cardStyles('#fff', 'black')}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>Blood Pressure</Typography>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={bloodPressureData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="systolic" stroke="#42a5f5" dot={false} />
+                      <Line type="monotone" dataKey="diastolic" stroke="#ef5350" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <Typography
+                      variant="body2"
+                      sx={{
+                      mt: 1,
+                        fontStyle: 'italic',
+                        color: 'blue',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                  >
+                  <AutoAwesomeIcon sx={{ mr: 1, color: 'red' }} />
+                  {blood_pressure_info}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
 
-          <Box sx={{ flex: '1 1 25%' }}>
-            <Card sx={cardStyles('#fff','black')}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>Blood Pressure</Typography>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={bloodPressureData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="systolic" stroke="#42a5f5" dot={false} />
-                    <Line type="monotone" dataKey="diastolic" stroke="#ef5350" dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-                <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue'}}>
-                   {blood_pressure_info}
-                 </Typography>
-              </CardContent>
-            </Card>
-          </Box>
+            <Box sx={{ flex: '1 1 25%' }}>
+              <Card sx={cardStyles('#fff', 'black')}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>Oxygen Level</Typography>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={oxygen_level}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="value" stroke="#66bb6a" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <Typography
+                      variant="body2"
+                      sx={{
+                      mt: 1,
+                        fontStyle: 'italic',
+                        color: 'blue',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                  >
+                  <AutoAwesomeIcon sx={{ mr: 1, color: 'red' }} />
+                  {oxygen_level_info}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
 
-          <Box sx={{ flex: '1 1 25%' }}>
-            <Card sx={cardStyles('#fff','black')}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>Oxygen Level</Typography>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={oxygen_level}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="value" stroke="#66bb6a" dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-                <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue'}}>
-                   {oxygen_level_info}
-                 </Typography>
-              </CardContent>
-            </Card>
-          </Box>
-
-          <Box sx={{ flex: '1 1 25%' }}>
-            <Card sx={cardStyles('#fff','black')}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>Sugar Level</Typography>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={sugar_level}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="value" stroke="#ec407a" dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-                <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue'}}>
+            <Box sx={{ flex: '1 1 25%' }}>
+              <Card sx={cardStyles('#fff', 'black')}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>Sugar Level</Typography>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={sugar_level}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="value" stroke="#ec407a" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <Typography
+                      variant="body2"
+                      sx={{
+                      mt: 1,
+                        fontStyle: 'italic',
+                        color: 'blue',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                  >
+                  <AutoAwesomeIcon sx={{ mr: 1, color: 'red' }} />
                   {sugar_level_info}
-                 </Typography>
-              </CardContent>
-            </Card>
-          </Box>
-        </Box>
-
-        {/* Row 2: Visits */}
-        <Box sx={{ display: 'flex', gap: 2, mb: 6 }}>
-          <Box sx={{ flex: '1 1 50%' }}>
-            <Card sx={cardStyles('linear-gradient(135deg, #FFC107 0%, #FFCA28 100%)','black')}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>Previous Visits</Typography>
-                {recentVisits.length === 0 ? (
-                  <Typography>No visits</Typography>
-                ) : (
-                  <List disablePadding>
-                    {recentVisits.map(v => (
-                      <ListItemButton
-                        key={v.id}
-                        onClick={() => navigate(`/visit/${v.id}`)}
-                        sx={{ mb: 1, borderRadius: 1, bgcolor: 'grey.50', '&:hover': { bgcolor: 'primary.light', color: 'primary.contrastText' } }}
-                      >
-                        <ListItemText
-                          primary={`${new Date(v.visitdate).toLocaleDateString()} — ${v.content}`}
-                          primaryTypographyProps={{ noWrap: true, maxWidth: 350 }}
-                        />
-                      </ListItemButton>
-                    ))}
-                  </List>
-                )}
-              </CardContent>
-            </Card>
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
           </Box>
 
-          <Box sx={{ flex: '1 1 50%' }}>
-            <Card sx={cardStyles('linear-gradient(135deg, #AED581 0%, #66BB6A 100%)','black')}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>Upcoming Visits</Typography>
-                {upcomingVisits.length === 0 ? (
-                  <Typography>No upcoming visits</Typography>
-                ) : (
-                  <List disablePadding>
-                    {upcomingVisits.map(v => (
-                      <ListItemButton
-                        key={v.visit_id}
-                        onClick={() => navigate(`/visit/${v.visit_id}`)}
-                        sx={{ mb: 1, borderRadius: 1, bgcolor: 'grey.50', '&:hover': { bgcolor: 'primary.light', color: 'primary.contrastText' } }}
-                      >
-                        <ListItemText
-                          primary={`${new Date(v.date).toLocaleDateString()} — ${v.summary}`}
-                          primaryTypographyProps={{ noWrap: true, maxWidth: 350 }}
-                        />
-                      </ListItemButton>
-                    ))}
-                  </List>
-                )}
-              </CardContent>
-            </Card>
+          {/* Row 2: Visits */}
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ flex: '1 1 50%' }}>
+              <Card sx={cardStyles('linear-gradient(135deg, #FFC107 0%, #FFCA28 100%)', 'black')}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>Previous Visits</Typography>
+                  {recentVisits.length === 0 ? (
+                    <Typography>No visits</Typography>
+                  ) : (
+                    <List disablePadding>
+                      {recentVisits.map(v => (
+                        <ListItemButton
+                          key={v.id}
+                          onClick={() => navigate(`/visit/${v.id}`)}
+                          sx={{ mb: 1, borderRadius: 1, bgcolor: 'grey.50', '&:hover': { bgcolor: 'primary.light', color: 'primary.contrastText' } }}
+                        >
+                          <ListItemText
+                            primary={`${new Date(v.visitdate).toLocaleDateString()} — ${v.content}`}
+                            primaryTypographyProps={{ noWrap: true, maxWidth: 350 }}
+                          />
+                        </ListItemButton>
+                      ))}
+                    </List>
+                  )}
+                </CardContent>
+              </Card>
+            </Box>
+
+            <Box sx={{ flex: '1 1 50%' }}>
+              <Card sx={cardStyles('linear-gradient(135deg, #AED581 0%, #66BB6A 100%)', 'black')}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>Upcoming Visits</Typography>
+                  {upcomingVisits.length === 0 ? (
+                    <Typography>No upcoming visits</Typography>
+                  ) : (
+                    <List disablePadding>
+                      {upcomingVisits.map(v => (
+                        <ListItemButton
+                          key={v.visit_id}
+                          onClick={() => navigate(`/visit/${v.visit_id}`)}
+                          sx={{ mb: 1, borderRadius: 1, bgcolor: 'grey.50', '&:hover': { bgcolor: 'primary.light', color: 'primary.contrastText' } }}
+                        >
+                          <ListItemText
+                            primary={`${new Date(v.date).toLocaleDateString()} — ${v.summary}`}
+                            primaryTypographyProps={{ noWrap: true, maxWidth: 350 }}
+                          />
+                        </ListItemButton>
+                      ))}
+                    </List>
+                  )}
+                </CardContent>
+              </Card>
+            </Box>
           </Box>
-        </Box>
+
+          {/* Reports */}
+          <Accordion sx={{ mb: 4, borderRadius: 2, boxShadow: 1 }} defaultExpanded>
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ backgroundColor: '#f5f5f5' }}
+            >
+              <Box display="flex" alignItems="center" width="100%">
+                <Typography variant="h6">🧾 Patient Reports</Typography>
+                <Chip
+                  label={reports.length}
+                  size="small"
+                  color="primary"
+                  sx={{ ml: 2 }}
+                />
+              </Box>
+            </AccordionSummary>
+
+            <AccordionDetails>
+              {reports.length > 0 ? (
+                <List disablePadding>
+                  {reports.map((r, idx) => (
+                    <ListItem key={idx} divider>
+                      <Box display="flex" justifyContent="space-between" width="100%">
+                        <Box>
+                          <Typography variant="subtitle1">{r.type}</Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            {r.content}
+                          </Typography>
+                          {r.image_url && (
+                            <Box
+                              component="img"
+                              src={r.image_url}
+                              alt={r.type}
+                              sx={{ mt: 1, width: '100%', borderRadius: 1 }}
+                            />
+                          )}
+                        </Box>
+                        <Typography variant="body2" color="textSecondary">
+                          {new Date(r.date).toLocaleDateString()}
+                        </Typography>
+                      </Box>
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography color="textSecondary">
+                  No OCR reports available.
+                </Typography>
+              )}
+            </AccordionDetails>
+          </Accordion>
 
         {/* Row 3: BMI Calculator + Health Dad Joke */}
-<Box sx={{ display: 'flex', gap: 2, mb: 6 }}>
-  
+
+<Box sx={{ display: 'flex', gap: 2 }}>
+
   {/* BMI Card */}
   <Box sx={{ flex: '1 1 50%' }}>
     <Card sx={cardStyles('linear-gradient(135deg, #4db6ac 0%, #80cbc4 100%)', 'black')}>
       <CardContent>
         <Typography variant="h6" gutterBottom>BMI Calculator</Typography>
-        
+
         <input
           type="number"
           placeholder="Weight (kg)"
@@ -352,29 +456,29 @@ export default function PatientDashboard() {
           Calculate BMI
         </Button>
 
-        {bmiResult && (
-          <Typography sx={{ mt: 2, fontStyle: 'italic' }}>
-            {bmiResult}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
-  </Box>
+                {bmiResult && (
+                  <Typography sx={{ mt: 2, fontStyle: 'italic' }}>
+                    {bmiResult}
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+        </Box>
 
   {/* Health Dad Joke Card */}
   <Box sx={{ flex: '1 1 50%' }}>
     <Card sx={{
       background: 'linear-gradient(135deg, #f48fb1 0%, #f06292 100%)',
-      color: 'white',
+      color: 'black',
       borderRadius: 8,
       p: 3,
-      height: 350,
       boxShadow: '0px 4px 12px rgba(0,0,0,0.1)',
       transition: 'transform 0.2s',
       '&:hover': { transform: 'scale(1.02)' }
     }}>
       <CardContent>
-        <Typography variant="h6" gutterBottom>Dad Joke of the Day 😂 about Health ofcourse</Typography>
+        <Typography variant="h6" gutterBottom>Health Joke of the Day 🍎</Typography>
         <Typography variant="body1" sx={{ fontStyle: 'italic' }}>
           {healthJoke || 'Loading joke...'}
         </Typography>

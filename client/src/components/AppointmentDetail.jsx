@@ -8,7 +8,23 @@ import { useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
-
+import Accordion from '@mui/material/Accordion';
+import AccordionSummary from '@mui/material/AccordionSummary';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import Typography from '@mui/material/Typography';
+import Chip from '@mui/material/Chip';
+import Card from '@mui/material/Card';
+import CardHeader from '@mui/material/CardHeader';
+import CardContent from '@mui/material/CardContent';
+import Grid from '@mui/material/Grid';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Divider from '@mui/material/Divider';
+import NoteAddIcon from '@mui/icons-material/NoteAdd';
+import { useNavigate } from 'react-router-dom';
 
 function AppointmentDetail() {
   const { user } = useAuth();
@@ -31,6 +47,10 @@ function AppointmentDetail() {
   const [uploadedReportType, setUploadedReportType] = useState('');
   const [uploadedReportImageUrl, setUploadedReportImageUrl] = useState('');
 
+  const navigate = useNavigate();
+
+
+  const [uploadedReportId, setUploadedReportId] = useState(null);
 
 
   const [formOpen, setFormOpen] = useState(false);
@@ -140,7 +160,6 @@ function AppointmentDetail() {
       alert('Failed to process recording.');
     }
   };
-
   const handleUploadImage = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -156,17 +175,17 @@ function AppointmentDetail() {
         }
       });
 
-      setUploadedReportSummary(res.data.summary);  // summary of the image (e.g., "ECG normal")
-      setUploadedReportType(res.data.reporttype);  // report type (e.g., "ECG Report")
-      setUploadedReportImageUrl(res.data.imageUrl);  // public image URL if you want to show it (optional)
+      console.log('Summarize response:', res.data);
+
+      setUploadedReportSummary(res.data.summary);
+      setUploadedReportType(res.data.reporttype);
+      setUploadedReportImageUrl(res.data.imageUrl);   // 이거 res.data.imageUrl 쓰기
 
     } catch (err) {
-      console.error('Failed to process image', err);
-      alert('Failed to upload and summarize image.');
+      console.error('Failed to upload and summarize image', err);
+      alert('Failed to upload or summarize image.');
     }
   };
-
-
 
   const handleRecordingButtonClick = () => {
     if (isRecording) {
@@ -183,8 +202,12 @@ function AppointmentDetail() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const filteredFormData = Object.fromEntries(
+        Object.entries(formData).filter(([_, v]) => v !== '')
+      );
+
       await axios.patch(`/update-visit/${id}`, {
-        ...formData,
+        ...filteredFormData,
         content: recordingTranscript || '',
         visitsummaryaudio: recordingAudioUrl || ''
       }, {
@@ -195,31 +218,37 @@ function AppointmentDetail() {
       });
 
       // 2) If a report was uploaded, add it to 'reports' table
-    if (uploadedReportSummary && uploadedReportType) {
-      await axios.post('/add-report', {
-        patient_id: visit.patient_id,
-        report_content: uploadedReportSummary,
-        report_type: uploadedReportType
-      }, {
-        headers: {
-          Authorization: user?.user_id,
-          'Content-Type': 'application/json'
-        }
-      });
-    }
+      if (uploadedReportSummary && uploadedReportType) {
+        await axios.post('/add-report', {
+          patient_id: visit.patient_id,
+          report_content: uploadedReportSummary,
+          report_type: uploadedReportType,
+          image_url: uploadedReportImageUrl,
+        }, {
+          headers: {
+            Authorization: user?.user_id,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
 
-    // Reset everything
-    setFormOpen(false);
-    setFormData({ bloodpressure: '', oxygenlevel: '', sugarlevel: '', weight: '', height: '', doctorrecommendation: '' });
-    setRecordingTranscript('');
-    setRecordingAudioUrl('');
-    setUploadedReportSummary('');
-    setUploadedReportType('');
-    setUploadedReportImageUrl('');
+      // Reset everything
+      setFormOpen(false);
+      setFormData({ bloodpressure: '', oxygenlevel: '', sugarlevel: '', weight: '', height: '', doctorrecommendation: '' });
+      setRecordingTranscript('');
+      setRecordingAudioUrl('');
+      setUploadedReportSummary('');
+      setUploadedReportType('');
+      setUploadedReportImageUrl('');
 
-    // Refresh visit
-    const updatedVisitRes = await axios.get(`/visit/${id}`);
-    setVisit(updatedVisitRes.data);
+      // Refresh visit
+      const updatedVisitRes = await axios.get(`/visit/${id}`);
+      setVisit(updatedVisitRes.data);
+
+      // navigate to the dashboard
+      setTimeout(() => {
+        navigate('/doctor/dashboard');
+      }, 1000);
 
     } catch (err) {
       console.error('Failed to update visit', err);
@@ -351,24 +380,93 @@ function AppointmentDetail() {
       </div>
 
       {/* Reports */}
-      <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #ccc', borderRadius: '8px' }}>
-        <h2>🧾 Recent OCR Reports</h2>
-        {reports.length > 0 ? (
-          <ul>
-            {reports.map((r, idx) => <li key={idx}>{r.reporttype}: {r.reportcontent}</li>)}
-          </ul>
-        ) : <p>No OCR reports available.</p>}
-      </div>
+      <Accordion sx={{ mb: 4, borderRadius: 2, boxShadow: 1 }} defaultExpanded>
+        <AccordionSummary
+          expandIcon={<ExpandMoreIcon />}
+          sx={{ backgroundColor: '#f5f5f5' }}
+        >
+          <Box display="flex" alignItems="center" width="100%">
+            <Typography variant="h6">🧾 Patient Reports</Typography>
+            <Chip
+              label={reports.length}
+              size="small"
+              color="primary"
+              sx={{ ml: 2 }}
+            />
+          </Box>
+        </AccordionSummary>
+
+        <AccordionDetails>
+          {reports.length > 0 ? (
+            <List disablePadding>
+              {reports.map((r, idx) => (
+                <ListItem key={idx} divider>
+                  <Box display="flex" justifyContent="space-between" width="100%">
+                    <Box>
+                      <Typography variant="subtitle1">{r.reporttype}</Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        {r.reportcontent}
+                      </Typography>
+                      {r.image_url && (
+                        <Box
+                          component="img"
+                          src={r.image_url}
+                          alt={r.reporttype}
+                          sx={{ mt: 1, width: '100%', borderRadius: 1 }}
+                        />
+                      )}
+                    </Box>
+                    <Typography variant="body2" color="textSecondary">
+                      {new Date(r.reportdate).toLocaleDateString()}
+                    </Typography>
+                  </Box>
+                </ListItem>
+              ))}
+            </List>
+          ) : (
+            <Typography color="textSecondary">
+              No OCR reports available.
+            </Typography>
+          )}
+        </AccordionDetails>
+      </Accordion>
 
       {/* Pending Questions */}
-      <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #ccc', borderRadius: '8px' }}>
-        <h2>❓ Pending Questions</h2>
-        {pending_questions.length > 0 ? (
-          <ul>
-            {pending_questions.map((q, idx) => <li key={idx}>{q.daterecorded}: {q.questiontext}</li>)}
-          </ul>
-        ) : <p>No pending questions.</p>}
-      </div>
+      <Accordion 
+        defaultExpanded={true} 
+        sx={{ mb: 4, borderRadius: 2, boxShadow: 1 }}
+      >
+        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ backgroundColor: '#f5f5f5' }}>
+          <Box display="flex" alignItems="center" width="100%">
+            <Typography variant="h6">Pending Questions</Typography>
+            <Chip 
+              label={pending_questions.length} 
+              size="small" 
+              color="secondary" 
+              sx={{ ml: 2 }} 
+            />
+          </Box>
+        </AccordionSummary>
+
+        <AccordionDetails>
+          {pending_questions.length > 0 ? (
+            <List disablePadding>
+              {pending_questions.map((q, idx) => (
+                <ListItem key={idx} divider>
+                  <Box display="flex" justifyContent="space-between" width="100%">
+                    <Typography>{q.questiontext}</Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      {new Date(q.daterecorded).toLocaleDateString()}
+                    </Typography>
+                  </Box>
+                </ListItem>
+              ))}
+            </List>
+          ) : (
+            <Typography color="textSecondary">No pending questions.</Typography>
+          )}
+        </AccordionDetails>
+      </Accordion>
 
       {/* Consultation Buttons */}
       <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
@@ -406,7 +504,7 @@ function AppointmentDetail() {
 
 
       {/* Form (addon) */}
-      {formOpen && (
+      {/* {formOpen && (
         <form onSubmit={handleSubmit} style={{ marginTop: '2rem' }}>
           <h2>📝 Fill Today's Visit Information</h2>
           <input type="text" name="bloodpressure" placeholder="Blood Pressure (ex: 120/80)" value={formData.bloodpressure} onChange={handleChange} style={{ width: '100%', marginBottom: '1rem' }} />
@@ -419,7 +517,99 @@ function AppointmentDetail() {
             Submit Visit Record
           </button>
         </form>
+      )} */}
+      {formOpen && (
+        <Card
+          component="form"
+          onSubmit={handleSubmit}
+          elevation={3}
+          sx={{ mt: 4, p: 2 }}
+        >
+          <CardHeader
+            avatar={<NoteAddIcon color="primary" />}
+            title="Fill Today's Visit Information"
+            titleTypographyProps={{ variant: 'h6' }}
+          />
+          <Divider sx={{ mb: 2 }} />
+          <CardContent>
+            <Grid container spacing={2}>
+              {/* First row */}
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Blood Pressure (ex: 120/80)"
+                  name="bloodpressure"
+                  value={formData.bloodpressure}
+                  onChange={handleChange}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Oxygen Level (%)"
+                  name="oxygenlevel"
+                  type="number"
+                  value={formData.oxygenlevel}
+                  onChange={handleChange}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Blood Sugar (mg/dL)"
+                  name="sugarlevel"
+                  type="number"
+                  value={formData.sugarlevel}
+                  onChange={handleChange}
+                />
+              </Grid>
+
+              {/* Second row */}
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Weight (kg)"
+                  name="weight"
+                  type="number"
+                  value={formData.weight}
+                  onChange={handleChange}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Height (cm)"
+                  name="height"
+                  type="number"
+                  value={formData.height}
+                  onChange={handleChange}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={4}
+                  label="Doctor's Notes"
+                  name="doctorrecommendation"
+                  value={formData.doctorrecommendation}
+                  onChange={handleChange}
+                />
+              </Grid>
+
+              {/* Submit button */}
+              <Grid item xs={12}>
+                <Box sx={{ textAlign: 'left', mt: 2 }}>
+                  <Button type="submit" variant="contained" size="large">
+                    Submit Visit Record
+                  </Button>
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
       )}
+
     </div>
   );
 }
