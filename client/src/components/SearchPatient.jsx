@@ -1,8 +1,19 @@
-// src/components/SearchPatient.jsx
-
 import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+
+import Box from '@mui/material/Box';
+import CssBaseline from '@mui/material/CssBaseline';
+import AppBar from '@mui/material/AppBar';
+import Toolbar from '@mui/material/Toolbar';
+import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import List from '@mui/material/List';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemText from '@mui/material/ListItemText';
 
 function SearchPatient() {
   const [form, setForm] = useState({ name: '', dob: '' });
@@ -29,53 +40,95 @@ function SearchPatient() {
     navigate(`/create-appointment/${patient.id}`);
   };
 
+  const cardStyles = (bgColor = '#fff', textColor = 'black') => ({
+    background: bgColor,
+    color: textColor,
+    borderRadius: 8,
+    p: 3,
+    boxShadow: '0px 4px 12px rgba(0,0,0,0.1)',
+    transition: 'transform 0.2s',
+    '&:hover': { transform: 'scale(1.02)' }
+  });
+
   return (
-    <div style={{ padding: '2rem' }}>
-      <h1>🔍 Search Patient</h1>
+    <Box sx={{ backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
+      <CssBaseline />
 
-      <br/>
-      <h6>Enter Patient Name:</h6>
-      <input
-        type="text"
-        name="name"
-        placeholder="Patient Name"
-        value={form.name}
-        onChange={handleChange}
-        style={{ marginBottom: '1rem', padding: '0.5rem' }}
-      />
-      <br/>
-      <h6>Enter Patient DOB (Date of Birth):</h6>
-      <input
-        type="date"
-        name="dob"
-        value={form.dob}
-        onChange={handleChange}
-        style={{ marginBottom: '1rem', padding: '0.5rem' }}
-      />
-      <br/>
-      <br/>
-      <br/>
-      <button onClick={handleSearch} style={{ padding: '0.5rem 1rem' }}>
-        Search
-      </button>
+      <AppBar position="fixed" sx={{ bgcolor: '#fff', color: 'black' }}>
+        <Toolbar>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>Search Patient</Typography>
+        </Toolbar>
+      </AppBar>
 
-      {/* 결과 리스트 */}
-      <div style={{ marginTop: '2rem' }}>
-        {results.length > 0 ? (
-          <ul>
-            {results.map((patient) => (
-              <li
-                key={patient.id}
-                style={{ marginBottom: '1rem', cursor: 'pointer', border: '1px solid #ccc', padding: '1rem', borderRadius: '8px' }}
-                onClick={() => handleSelect(patient)}
-              >
-                <b>{patient.name}</b> - {patient.dob}
-              </li>
-            ))}
-          </ul>
-        ) : <p>No patients found.</p>}
-      </div>
-    </div>
+      <Box component="main" sx={{ p: 5, pt: 10 }}>
+        {/* Search Form */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 6, maxWidth: 400 }}>
+          <Typography variant="h6">Enter Patient Name:</Typography>
+          <TextField
+            name="name"
+            placeholder="Patient Name"
+            value={form.name}
+            onChange={handleChange}
+            fullWidth
+            size="small"
+            variant="outlined"
+          />
+
+          <Typography variant="h6">Enter Patient DOB (Date of Birth):</Typography>
+          <TextField
+            name="dob"
+            type="date"
+            value={form.dob}
+            onChange={handleChange}
+            fullWidth
+            size="small"
+            variant="outlined"
+            InputLabelProps={{ shrink: true }}
+          />
+
+          <Button
+            variant="contained"
+            onClick={handleSearch}
+            sx={{ mt: 2, bgcolor: '#1976d2', borderRadius: 2 }}
+          >
+            🔍 Search
+          </Button>
+        </Box>
+
+        {/* Search Results */}
+        <Box>
+          {results.length > 0 ? (
+            <Card sx={cardStyles('linear-gradient(135deg, #42A5F5 0%, #64B5F6 100%)')}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>Search Results</Typography>
+                <List disablePadding>
+                  {results.map((patient) => (
+                    <ListItemButton
+                      key={patient.id}
+                      onClick={() => handleSelect(patient)}
+                      sx={{
+                        mb: 1,
+                        borderRadius: 1,
+                        bgcolor: 'grey.50',
+                        color: 'black',
+                        '&:hover': { bgcolor: 'primary.light', color: 'black' }
+                      }}
+                    >
+                      <ListItemText
+                        primary={`${patient.name} — ${patient.dob}`}
+                        primaryTypographyProps={{ noWrap: true, maxWidth: 250 }}
+                      />
+                    </ListItemButton>
+                  ))}
+                </List>
+              </CardContent>
+            </Card>
+          ) : (
+            <Typography>No patients found.</Typography>
+          )}
+        </Box>
+      </Box>
+    </Box>
   );
 }
 

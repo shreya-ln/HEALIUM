@@ -147,15 +147,6 @@ function DoctorDashboard() {
           </Box>
         </Box>
 
-        {/* Floating Chat Button */}
-        <Fab
-          color="secondary"
-          variant="extended"
-          onClick={() => navigate('/ask-ai')}
-          sx={{ position: 'fixed', bottom: 24, right: 24, boxShadow: '0px 4px 12px rgba(0,0,0,0.2)', zIndex: (theme) => theme.zIndex.tooltip }}
-        >
-          <ChatIcon sx={{ mr: 1 }} /> Chat with Agent
-        </Fab>
       </Box>
     </Box>
   );
