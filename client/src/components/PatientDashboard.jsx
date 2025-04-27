@@ -50,6 +50,11 @@ export default function PatientDashboard() {
   const [upcomingVisits, setUpcomingVisits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [trendRecs, setTrendRecs] = useState({
+      blood_pressure: "",
+      oxygen_level: "",
+      sugar_level: ""
+  });
 
   useEffect(() => {
     if (!token) return;
@@ -63,6 +68,16 @@ export default function PatientDashboard() {
         setDashboardData(dashRes.data);
         setRecentVisits(visitsRes.data);
         setUpcomingVisits(upcomingRes.data);
+
+        // const { blood_pressure, oxygen_level, sugar_level } = dashRes.data.health_trends;
+        // const recRes = await axios.post(
+        //   '/trend-recommendations',
+        //   { blood_pressure, oxygen_level, sugar_level },
+        //   { headers: { Authorization: token }}
+        // );
+        // setTrendRecs(recRes.data);
+        console.log("Response: ", trendRecs);
+        console.log("Response 2: ", dashRes.data.recommendations);
       } catch {
         setError('Failed to load dashboard');
       } finally {
@@ -84,7 +99,8 @@ export default function PatientDashboard() {
 
   const {
     medications,
-    health_trends: { blood_pressure, oxygen_level, sugar_level }
+    health_trends: { blood_pressure, oxygen_level, sugar_level },
+    recommendations: { blood_pressure_info, oxygen_level_info, sugar_level_info}
   } = dashboardData;
 
   const bloodPressureData = blood_pressure.map(bp => {
@@ -97,7 +113,7 @@ export default function PatientDashboard() {
     color: textColor,
     borderRadius: 8,
     p: 3,
-    height: 280,
+    height: 350,
     boxShadow: '0px 4px 12px rgba(0,0,0,0.1)',
     transition: 'transform 0.2s',
     '&:hover': { transform: 'scale(1.02)' }
@@ -166,6 +182,9 @@ export default function PatientDashboard() {
                     <Line type="monotone" dataKey="diastolic" stroke="#ef5350" dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
+                <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue'}}>
+                   {blood_pressure_info}
+                 </Typography>
               </CardContent>
             </Card>
           </Box>
@@ -183,6 +202,9 @@ export default function PatientDashboard() {
                     <Line type="monotone" dataKey="value" stroke="#66bb6a" dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
+                <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue'}}>
+                   {oxygen_level_info}
+                 </Typography>
               </CardContent>
             </Card>
           </Box>
@@ -200,6 +222,9 @@ export default function PatientDashboard() {
                     <Line type="monotone" dataKey="value" stroke="#ec407a" dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
+                <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue'}}>
+                  {sugar_level_info}
+                 </Typography>
               </CardContent>
             </Card>
           </Box>
@@ -223,7 +248,7 @@ export default function PatientDashboard() {
                       >
                         <ListItemText
                           primary={`${new Date(v.visitdate).toLocaleDateString()} — ${v.content}`}
-                          primaryTypographyProps={{ noWrap: true, maxWidth: 250 }}
+                          primaryTypographyProps={{ noWrap: true, maxWidth: 350 }}
                         />
                       </ListItemButton>
                     ))}
@@ -249,7 +274,7 @@ export default function PatientDashboard() {
                       >
                         <ListItemText
                           primary={`${new Date(v.date).toLocaleDateString()} — ${v.summary}`}
-                          primaryTypographyProps={{ noWrap: true, maxWidth: 250 }}
+                          primaryTypographyProps={{ noWrap: true, maxWidth: 350 }}
                         />
                       </ListItemButton>
                     ))}
