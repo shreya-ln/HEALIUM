@@ -32,6 +32,9 @@ function AppointmentDetail() {
 
 
 
+  const [uploadedReportId, setUploadedReportId] = useState(null);
+
+
   const [formOpen, setFormOpen] = useState(false);
   const [formData, setFormData] = useState({
     bloodpressure: '',
@@ -139,7 +142,6 @@ function AppointmentDetail() {
       alert('Failed to process recording.');
     }
   };
-
   const handleUploadImage = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -155,17 +157,17 @@ function AppointmentDetail() {
         }
       });
 
-      setUploadedReportSummary(res.data.summary);  // summary of the image (e.g., "ECG normal")
-      setUploadedReportType(res.data.reporttype);  // report type (e.g., "ECG Report")
-      setUploadedReportImageUrl(res.data.imageUrl);  // public image URL if you want to show it (optional)
+      console.log('Summarize response:', res.data);
+
+      setUploadedReportSummary(res.data.summary);
+      setUploadedReportType(res.data.reporttype);
+      setUploadedReportImageUrl(res.data.imageUrl);   // 이거 res.data.imageUrl 쓰기
 
     } catch (err) {
-      console.error('Failed to process image', err);
-      alert('Failed to upload and summarize image.');
+      console.error('Failed to upload and summarize image', err);
+      alert('Failed to upload or summarize image.');
     }
   };
-
-
 
   const handleRecordingButtonClick = () => {
     if (isRecording) {
@@ -182,8 +184,12 @@ function AppointmentDetail() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const filteredFormData = Object.fromEntries(
+        Object.entries(formData).filter(([_, v]) => v !== '')
+      );
+
       await axios.patch(`/update-visit/${id}`, {
-        ...formData,
+        ...filteredFormData,
         content: recordingTranscript || '',
         visitsummaryaudio: recordingAudioUrl || ''
       }, {
@@ -194,31 +200,32 @@ function AppointmentDetail() {
       });
 
       // 2) If a report was uploaded, add it to 'reports' table
-    if (uploadedReportSummary && uploadedReportType) {
-      await axios.post('/add-report', {
-        patient_id: visit.patient_id,
-        report_content: uploadedReportSummary,
-        report_type: uploadedReportType
-      }, {
-        headers: {
-          Authorization: user?.user_id,
-          'Content-Type': 'application/json'
-        }
-      });
-    }
+      if (uploadedReportSummary && uploadedReportType) {
+        await axios.post('/add-report', {
+          patient_id: visit.patient_id,
+          report_content: uploadedReportSummary,
+          report_type: uploadedReportType,
+          image_url: uploadedReportImageUrl,
+        }, {
+          headers: {
+            Authorization: user?.user_id,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
 
-    // Reset everything
-    setFormOpen(false);
-    setFormData({ bloodpressure: '', oxygenlevel: '', sugarlevel: '', weight: '', height: '', doctorrecommendation: '' });
-    setRecordingTranscript('');
-    setRecordingAudioUrl('');
-    setUploadedReportSummary('');
-    setUploadedReportType('');
-    setUploadedReportImageUrl('');
+      // Reset everything
+      setFormOpen(false);
+      setFormData({ bloodpressure: '', oxygenlevel: '', sugarlevel: '', weight: '', height: '', doctorrecommendation: '' });
+      setRecordingTranscript('');
+      setRecordingAudioUrl('');
+      setUploadedReportSummary('');
+      setUploadedReportType('');
+      setUploadedReportImageUrl('');
 
-    // Refresh visit
-    const updatedVisitRes = await axios.get(`/visit/${id}`);
-    setVisit(updatedVisitRes.data);
+      // Refresh visit
+      const updatedVisitRes = await axios.get(`/visit/${id}`);
+      setVisit(updatedVisitRes.data);
 
     } catch (err) {
       console.error('Failed to update visit', err);
@@ -350,14 +357,42 @@ function AppointmentDetail() {
       </div>
 
       {/* Reports */}
-      <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #ccc', borderRadius: '8px' }}>
-        <h2>🧾 Recent OCR Reports</h2>
-        {reports.length > 0 ? (
-          <ul>
-            {reports.map((r, idx) => <li key={idx}>{r.reporttype}: {r.reportcontent}</li>)}
-          </ul>
-        ) : <p>No OCR reports available.</p>}
-      </div>
+<div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #ccc', borderRadius: '8px' }}>
+  <h2>🧾 Recent OCR Reports</h2>
+  {reports.length > 0 ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {reports.map((r, idx) => (
+        <div
+          key={idx}
+          style={{
+            padding: '1rem',
+            border: '1px solid #ddd',
+            borderRadius: '8px',
+            backgroundColor: '#fafafa',
+            boxShadow: '0 2px 5px rgba(0,0,0,0.05)'
+          }}
+        >
+          <h3 style={{ marginBottom: '0.5rem' }}>{r.reporttype || 'Unknown Type'}</h3>
+          <p style={{ whiteSpace: 'pre-wrap' }}>{r.reportcontent || 'No content available.'}</p>
+          {r.image_url && (
+            <img
+              src={r.image_url}
+              alt="Report image"
+              style={{
+                marginTop: '1rem',
+                maxWidth: '100%',
+                borderRadius: '8px',
+                border: '1px solid #ccc'
+              }}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  ) : (
+    <p>No OCR reports available.</p>
+  )}
+</div>
 
       {/* Pending Questions */}
       <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #ccc', borderRadius: '8px' }}>

@@ -13,9 +13,9 @@ chat_routes = Blueprint('chat_routes', __name__)
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-openai.api_key = os.getenv("OPENAI_KEY")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-print(">>> Loaded OPENAI_API_KEY:", os.getenv("OPENAI_KEY"))  # 디버깅용, None 뜨면 아직 못 읽음
+print(">>> Loaded OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))  # 디버깅용, None 뜨면 아직 못 읽음
 
 def get_current_user():
     user_id = request.headers.get('Authorization')
@@ -27,7 +27,7 @@ def get_current_user():
 @chat_routes.route('/chat', methods=['POST'])
 
 def chat_with_ai():
-    client = openai.OpenAI(api_key=os.getenv('OPENAI_KEY'))
+    client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
     user_id = get_current_user()
     data = request.get_json()
     user_question = data.get('question')
