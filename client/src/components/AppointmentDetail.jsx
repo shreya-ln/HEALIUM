@@ -1,5 +1,5 @@
 // src/components/AppointmentDetail.jsx
-
+import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
@@ -24,11 +24,11 @@ import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import NoteAddIcon from '@mui/icons-material/NoteAdd';
-import { useNavigate } from 'react-router-dom';
 
 function AppointmentDetail() {
   const { user } = useAuth();
   const { id } = useParams();
+  const navigate = useNavigate();
   const [visit, setVisit] = useState(null);
   const [patientSummary, setPatientSummary] = useState(null);
   const [aiSummary, setAiSummary] = useState('');
@@ -45,8 +45,6 @@ function AppointmentDetail() {
   const [uploadedReportSummary, setUploadedReportSummary] = useState('');
   const [uploadedReportType, setUploadedReportType] = useState('');
   const [uploadedReportImageUrl, setUploadedReportImageUrl] = useState('');
-
-  const navigate = useNavigate();
 
 
   const [uploadedReportId, setUploadedReportId] = useState(null);
@@ -474,7 +472,14 @@ function AppointmentDetail() {
         <label style={{ padding: '0.5rem 1rem', backgroundColor: '#2196f3', color: 'white', borderRadius: '8px', cursor: 'pointer' }}>
         Upload Report Image
         <input type="file" accept="image/*" onChange={handleUploadImage} style={{ display: 'none' }} />
-      </label>
+        </label>
+        <button 
+          style={{ padding: '0.5rem 1rem', backgroundColor: '#9c27b0', color: 'white', borderRadius: '8px' }}
+          onClick={() => navigate(`/visit/${id}/add-medication`)}
+          >
+            Enter Medication Details
+          </button>
+      
       </div>
 
       {/* Display the summarized result */}
