@@ -6,7 +6,8 @@ import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-
+import CircularProgress from '@mui/material/CircularProgress';
+import Box from '@mui/material/Box';
 
 
 function AppointmentDetail() {
@@ -224,8 +225,20 @@ function AppointmentDetail() {
     }
   };
   
-
-  if (!visit || !patientSummary) return <p>Loading...</p>;
+  if (!visit || !patientSummary) return (
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+      }}
+    >
+      <CircularProgress size={80} />
+      <p style={{ marginTop: '1rem', fontSize: '1.5rem', color: '#555', fontStyle: 'italic' }}>Loading...</p>
+    </Box>
+  );
 
   const { patient, medications, recent_visits, reports, pending_questions } = patientSummary;
 
