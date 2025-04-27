@@ -1,5 +1,5 @@
 // src/components/AppointmentDetail.jsx
-
+import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
@@ -13,6 +13,7 @@ import Box from '@mui/material/Box';
 function AppointmentDetail() {
   const { user } = useAuth();
   const { id } = useParams();
+  const navigate = useNavigate();
   const [visit, setVisit] = useState(null);
   const [patientSummary, setPatientSummary] = useState(null);
   const [aiSummary, setAiSummary] = useState('');
@@ -376,7 +377,14 @@ function AppointmentDetail() {
         <label style={{ padding: '0.5rem 1rem', backgroundColor: '#2196f3', color: 'white', borderRadius: '8px', cursor: 'pointer' }}>
         Upload Report Image
         <input type="file" accept="image/*" onChange={handleUploadImage} style={{ display: 'none' }} />
-      </label>
+        </label>
+        <button 
+          style={{ padding: '0.5rem 1rem', backgroundColor: '#9c27b0', color: 'white', borderRadius: '8px' }}
+          onClick={() => navigate(`/visit/${id}/add-medication`)}
+          >
+            Enter Medication Details
+          </button>
+      
       </div>
 
       {/* Display the summarized result */}

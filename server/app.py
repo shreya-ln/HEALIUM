@@ -1124,6 +1124,37 @@ def health_joke():
         print('Error generating health joke:', e)
         return jsonify({"error": "Failed to generate joke"}), 500
 
+@app.route('/add-medication', methods=['POST'])
+def add_medication():
+    try:
+        data = request.get_json()
+        patient_id = data.get('patient_id')
+        medicationname = data.get('medicationname')
+        dosage = data.get('dosage')
+        frequency = data.get('frequency')
+        startdate = data.get('startdate')
+        enddate = data.get('enddate')
+        notes = data.get('notes')
+
+        if not all([patient_id, medicationname, dosage, frequency, startdate, enddate]):
+            return jsonify({'error': 'Missing fields'}), 400
+
+        supabase.table('medications').insert({
+            'patient_id': patient_id,
+            'medicationname': medicationname,
+            'dosage': dosage,
+            'frequency': frequency,
+            'startdate': startdate,
+            'enddate': enddate,
+            'notes': notes
+        }).execute()
+
+        return jsonify({'message': 'Medication added successfully'}), 200
+
+    except Exception as e:
+        print('Error in add_medication:', e)
+        return jsonify({'error': 'Internal Server Error'}), 500
+
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 4000))

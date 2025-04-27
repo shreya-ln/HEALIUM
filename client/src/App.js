@@ -12,6 +12,7 @@ import SearchPatient from './components/SearchPatient';
 import CreateAppointment from './components/CreateAppointment';
 import VisitDetail from './components/VisitDetail';
 import ChatPage from './components/ChatPage';
+import AddMedication from './components/AddMedication';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -27,6 +28,7 @@ function App() {
     <AuthProvider>
       <Router>
       <Routes>
+  <Route path="/visit/:id/add-medication" element={<AddMedication />} />
   <Route path="/signin" element={<SigninForm />} />
   <Route path="/signup" element={<SignupForm />} />
   <Route path="/patient/dashboard" element={
