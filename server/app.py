@@ -543,22 +543,29 @@ def upload_question_audio_for_chat():
 # ─── 5. Get Past Visits (limit 10) ─────────────────────────────────────────────
 @app.route("/get-past-visits", methods=["GET"])
 def get_past_visits():
-    user_id = get_current_user()
-    if not user_id:
+    patient_id = get_current_user()
+    if not patient_id:
         return jsonify({"error": "unauthorized"}), 401
 
+    # 1) Build “now” ISO string (UTC)
+    now_iso = datetime.utcnow().isoformat()
+
+    # 2) Query only visits before today, most recent first, limit 10
     resp = (
         supabase
         .table("visits")
         .select("*")
-        .eq("patient_id", user_id)
+        .eq("patient_id", patient_id)
+        .lt("visitdate", now_iso)          # <— only dates strictly before now
         .order("visitdate", desc=True)
-        .limit(10)                        # <— only grab the latest 10
+        .limit(10)
         .execute()
     )
+    if not resp.data:
+        abort(500, description="Error fetching past visits")
 
     visits = resp.data or []
-    return jsonify(visits)
+    return jsonify(visits), 200
 
 # ─── 6. Upload OCR Report ────────────────────────────────────────────────────
 @app.route("/upload-ocr-report", methods=["POST"])
