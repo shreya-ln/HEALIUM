@@ -109,7 +109,7 @@ function DoctorDashboard() {
         <Toolbar />
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
           <Avatar sx={{ width: 80, height: 80, mb: 2 }} />
-          <Typography variant="h6">{doctorProfile?.fullname || 'Dr. Name'}</Typography>
+          <Typography variant="h6">Dr. {doctorProfile?.name || 'Dr. Name'}</Typography>
           <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
             {doctorProfile?.specialization || 'Specialization'}
           </Typography>
@@ -182,14 +182,14 @@ function DoctorDashboard() {
         </Box>
 
         {/* Floating Chat Button */}
-        <Fab
+        {/* <Fab
           color="secondary"
           variant="extended"
           onClick={() => navigate('/ask-ai')}
           sx={{ position: 'fixed', bottom: 24, right: 24, boxShadow: '0px 4px 12px rgba(0,0,0,0.2)', zIndex: theme => theme.zIndex.tooltip }}
         >
           <ChatIcon sx={{ mr: 1 }} /> Chat with Agent
-        </Fab>
+        </Fab> */}
 
       </Box>
     </Box>
