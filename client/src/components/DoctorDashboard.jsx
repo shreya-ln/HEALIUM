@@ -28,6 +28,7 @@ function DoctorDashboard() {
   const [futureAppointments, setFutureAppointments] = useState([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [doctorProfile, setDoctorProfile] = useState(null);
+  const [pastAppointments, setPastAppointments] = useState([]);
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -36,17 +37,19 @@ function DoctorDashboard() {
     const fetchData = async () => {
       if (!user?.user_id) return;
       try {
-        const [todayRes, futureRes, pendingRes, profileRes] = await Promise.all([
+        const [todayRes, futureRes, pendingRes, profileRes, pastRes] = await Promise.all([
           axios.get('/today-visits', { headers: { 'Authorization-Id': user.user_id } }),
           axios.get('/future-visits', { headers: { 'Authorization-Id': user.user_id } }),
           axios.get('/pending-questions-for-doctor', { headers: { Authorization: user.user_id } }),
-          axios.get('/doctor-profile', { headers: { Authorization: user.user_id } })
+          axios.get('/doctor-profile', { headers: { Authorization: user.user_id } }),
+          axios.get('/past-visits', { headers: {'Authorization': user.user_id} })
         ]);
 
         setTodayAppointments(todayRes.data || []);
         setFutureAppointments((futureRes.data || []).slice(0, 5));
         setPendingCount((pendingRes.data || []).length);
         setDoctorProfile(profileRes.data || {});
+        setPastAppointments(pastRes.data || []);
       } catch (err) {
         console.error('Failed to fetch dashboard data', err);
       } finally {
@@ -178,6 +181,36 @@ function DoctorDashboard() {
                 )}
               </CardContent>
             </Card>
+          </Box>
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 2, mb: 6 }}>
+          <Box sx={{ flex: '1 1 50%' }}>
+            <Card sx={cardStyles('linear-gradient(135deg, #FFDDAA 0%, #FFB74D 100%)')}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>📅 Past Appointments</Typography>
+                {pastAppointments.length === 0 ? (
+                  <Typography>No prior appointments.</Typography>
+                ) : (
+                  <List disablePadding>
+                    {pastAppointments.map((appt) => (
+                      <ListItemButton
+                        key={appt.id}
+                        onClick={() => handleSelect(appt)}
+                        sx={{ mb: 1, borderRadius: 1, bgcolor: 'grey.50', color: 'black', '&:hover': { bgcolor: 'primary.light', color: 'primary.contrastText' } }}
+                      >
+                        <ListItemText
+                          primary={`${appt.patient_name || 'Unknown'} — ${appt.visitdate ? new Date(appt.visitdate).toLocaleString() : 'TBD'}`}
+                          primaryTypographyProps={{ noWrap: true, maxWidth: 350 }}
+                        />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+          <Box sx={{ flex: '1 1 50%' }}>
           </Box>
         </Box>
 
