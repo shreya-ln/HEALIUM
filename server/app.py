@@ -774,68 +774,72 @@ def patient_summary(patient_id):
     if not user_id:
         return jsonify({"error": "unauthorized"}), 401
 
-    # 1. 환자 기본 정보
-    patient_resp = (
-        supabase
-        .table('patients')
-        .select('id, name, dob, phone, address, preferredlanguage')
-        .eq('id', patient_id)
-        .single()
-        .execute()
-    )
+    # a) Basic patient info
+    patient = supabase.table('patients') \
+        .select('id, name, dob, phone, address, preferredlanguage') \
+        .eq('id', patient_id) \
+        .single() \
+        .execute().data
+    if not patient:
+        abort(404, description="Patient not found")
 
-    if not patient_resp.data:
-        return jsonify({"error": "Patient not found"}), 404
+    # b) Last 5 visits with metrics
+    visits = supabase.table('visits') \
+        .select('visitdate, bloodpressure, oxygenlevel, sugarlevel') \
+        .eq('patient_id', patient_id) \
+        .order('visitdate', desc=True) \
+        .limit(5) \
+        .execute().data or []
 
-    # 2. 최근 visits
-    visits_resp = (
-        supabase
-        .table('visits')
-        .select('id, visitdate, bloodpressure, oxygenlevel, sugarlevel')
-        .eq('patient_id', patient_id)
-        .order('visitdate', desc=True)
-        .limit(5)
-        .execute()
-    )
+    # build trend arrays (ordered oldest→newest)
+    visits_sorted = sorted(visits, key=lambda v: v['visitdate'])
+    trends = {
+        "blood_pressure": [
+            {"date": v['visitdate'].split("T")[0], "value": v['bloodpressure']}
+            for v in visits_sorted if v.get('bloodpressure') is not None
+        ],
+        "oxygen_level": [
+            {"date": v['visitdate'].split("T")[0], "value": v['oxygenlevel']}
+            for v in visits_sorted if v.get('oxygenlevel') is not None
+        ],
+        "sugar_level": [
+            {"date": v['visitdate'].split("T")[0], "value": v['sugarlevel']}
+            for v in visits_sorted if v.get('sugarlevel') is not None
+        ]
+    }
 
-    # 3. medications
-    meds_resp = (
-        supabase
-        .table('medications')
-        .select('medicationid, medicationname, dosage, frequency, startdate, enddate, notes')
-        .eq('patient_id', patient_id)
-        .order('startdate', desc=True)
-        .execute()
-    )
+    # c) Other sections as before...
+    meds = supabase.table('medications') \
+        .select('medicationid, medicationname, dosage, frequency, startdate, enddate, notes') \
+        .eq('patient_id', patient_id) \
+        .order('startdate', desc=True) \
+        .execute().data or []
 
-    # 4. reports
-    reports_resp = (
-        supabase
-        .table('reports')
-        .select('id, reporttype, reportcontent, reportdate, image_url')
-        .eq('patient_id', patient_id)
-        .order('reportdate', desc=True)
-        .execute()
-    )
+    reports = supabase.table('reports') \
+        .select('id, reporttype, reportcontent, reportdate, image_url') \
+        .eq('patient_id', patient_id) \
+        .order('reportdate', desc=True) \
+        .execute().data or []
 
-    # 5. pending questions (✅ doctor_id도 체크 추가!!)
-    questions_resp = (
-        supabase
-        .table('questions')
-        .select('id, patient_id, doctor_id, questiontext, daterecorded')
-        .eq('patient_id', patient_id)
-        .eq('doctor_id', user_id)       # 🔥 여기 추가
-        .eq('status', 'Not')
-        .order('daterecorded', desc=True)
-        .execute()
-    )
+    questions = supabase.table('questions') \
+        .select('id, patient_id, doctor_id, questiontext, daterecorded') \
+        .eq('patient_id', patient_id) \
+        .eq('doctor_id', user_id) \
+        .eq('status', 'Not') \
+        .order('daterecorded', desc=True) \
+        .execute().data or []
+
+    # d) Generate single recommendation sentence
+    recommendation = generate_recommendation(trends)
+    print("recommendation: ", recommendation)
 
     return jsonify({
-        "patient": patient_resp.data,
-        "recent_visits": visits_resp.data or [],
-        "medications": meds_resp.data or [],
-        "reports": reports_resp.data or [],
-        "pending_questions": questions_resp.data or []
+        "patient":           patient,
+        "recent_visits":     visits,
+        "medications":       meds,
+        "reports":           reports,
+        "pending_questions": questions,
+        "recommendation":    recommendation
     }), 200
 
 
@@ -1304,6 +1308,36 @@ def visit_detail(visit_id):
         'ongoing_medications': ongoing_medications
     }), 200
 
+def generate_recommendation(trends):
+    """
+    trends: {
+      "blood_pressure": [...],
+      "oxygen_level":   [...],
+      "sugar_level":    [...]
+    }
+    Returns a single-sentence string recommendation.
+    """
+    prompt = (
+        "You are a concise clinical assistant. "
+        "Here are a patient’s recent health trends:\n\n"
+        f"{json.dumps(trends, indent=2)}\n\n"
+        "Provide exactly one sentence (max 15 words) summarizing any concerns or notable stability "
+        "across these metrics for a doctor’s quick review."
+    )
+
+    resp = llm.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a concise healthcare assistant."},
+            {"role": "user",   "content": prompt}
+        ],
+        temperature=0.3
+    )
+    text = resp.choices[0].message.content.strip()
+
+    # strip markdown fences if present
+    m = re.search(r"```(?:\w*\n)?([\s\S]*?)```", text)
+    return (m.group(1).strip() if m else text).rstrip(".")
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 4000))

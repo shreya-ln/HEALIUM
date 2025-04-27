@@ -41,44 +41,43 @@ export default function VisitDetail() {
   const token = user?.user_id;
 
   const [visit, setVisit] = useState(null);
+  const [questions, setQuestions] = useState([]);
+  const [newlyPrescribed, setNewlyPrescribed] = useState([]);
+  const [ongoingMedications, setOngoingMedications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [questions, setQuestions] = useState([]);
   const [recordError, setRecordError] = useState('');
 
   const audioRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // Choose supported audio MIME
   const getSupportedAudioMime = () => {
     const audio = document.createElement('audio');
     const types = ['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4','audio/wav'];
     return types.find(m => MediaRecorder.isTypeSupported(m) && audio.canPlayType(m)) || '';
   };
 
-  // Fetch visit details and existing questions
   useEffect(() => {
     if (!token) return;
-    axios.get(`/visit/${visitId}`, { headers: { Authorization: token } })
+    axios.get(`/visit-detail/${visitId}`, { headers: { Authorization: token } })
       .then(res => {
-        setVisit(res.data);
-        // assume API returns questions array
+        setVisit(res.data.visit);
         setQuestions(res.data.questions || []);
+        setNewlyPrescribed(res.data.newly_prescribed || []);
+        setOngoingMedications(res.data.ongoing_medications || []);
       })
       .catch(() => setError('Could not load visit details'))
       .finally(() => setLoading(false));
   }, [visitId, token]);
 
-  // Reload summary audio when URL changes
   useEffect(() => {
     if (visit?.audio_summary_url && audioRef.current) audioRef.current.load();
   }, [visit?.audio_summary_url]);
 
-  // Play / pause the visit's summary
   const handlePlayPause = () => {
     if (!audioRef.current) return;
     const audio = audioRef.current;
@@ -91,7 +90,6 @@ export default function VisitDetail() {
     }
   };
 
-  // Start recording
   const startRecording = async () => {
     setRecordError('');
     const mimeType = getSupportedAudioMime();
@@ -113,7 +111,6 @@ export default function VisitDetail() {
     }
   };
 
-  // Stop recording
   const stopRecording = () => {
     if (!mediaRecorderRef.current) return;
     mediaRecorderRef.current.stop();
@@ -121,7 +118,6 @@ export default function VisitDetail() {
     setIsRecording(false);
   };
 
-  // Once recording stops: upload to backend
   const onRecordingStop = async (mimeType) => {
     const blob = new Blob(audioChunksRef.current, { type: mimeType });
     const ext = mimeType.split('/')[1].split(';')[0];
@@ -165,51 +161,23 @@ export default function VisitDetail() {
         </Paper>
 
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={4}>
-            <Card sx={{ display: 'flex', alignItems: 'center', p: 2 }}>
-              <MonitorHeartIcon fontSize="large" />
-              <Box ml={2}>
-                <Typography variant="subtitle2">Blood Pressure</Typography>
-                <Typography>{visit.blood_pressure}</Typography>
-              </Box>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <Card sx={{ display: 'flex', alignItems: 'center', p: 2 }}>
-              <OpacityIcon fontSize="large" />
-              <Box ml={2}>
-                <Typography variant="subtitle2">Oxygen Level</Typography>
-                <Typography>{visit.oxygen_level}</Typography>
-              </Box>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <Card sx={{ display: 'flex', alignItems: 'center', p: 2 }}>
-              <LocalDrinkIcon fontSize="large" />
-              <Box ml={2}>
-                <Typography variant="subtitle2">Sugar Level</Typography>
-                <Typography>{visit.sugar_level}</Typography>
-              </Box>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <Card sx={{ display: 'flex', alignItems: 'center', p: 2 }}>
-              <FitnessCenterIcon fontSize="large" />
-              <Box ml={2}>
-                <Typography variant="subtitle2">Weight</Typography>
-                <Typography>{visit.weight} kg</Typography>
-              </Box>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <Card sx={{ display: 'flex', alignItems: 'center', p: 2 }}>
-              <HeightIcon fontSize="large" />
-              <Box ml={2}>
-                <Typography variant="subtitle2">Height</Typography>
-                <Typography>{visit.height} cm</Typography>
-              </Box>
-            </Card>
-          </Grid>
+          {[
+            { icon: <MonitorHeartIcon fontSize="large" />, label: 'Blood Pressure', value: visit.blood_pressure },
+            { icon: <OpacityIcon fontSize="large" />, label: 'Oxygen Level', value: visit.oxygen_level },
+            { icon: <LocalDrinkIcon fontSize="large" />, label: 'Sugar Level', value: visit.sugar_level },
+            { icon: <FitnessCenterIcon fontSize="large" />, label: 'Weight', value: `${visit.weight} kg` },
+            { icon: <HeightIcon fontSize="large" />, label: 'Height', value: `${visit.height} cm` }
+          ].map((item, idx) => (
+            <Grid item xs={12} sm={6} md={4} key={idx}>
+              <Card sx={{ display: 'flex', alignItems: 'center', p: 2 }}>
+                {item.icon}
+                <Box ml={2}>
+                  <Typography variant="subtitle2">{item.label}</Typography>
+                  <Typography>{item.value}</Typography>
+                </Box>
+              </Card>
+            </Grid>
+          ))}
         </Grid>
 
         {visit.doctor_recommendation && (
@@ -218,7 +186,53 @@ export default function VisitDetail() {
             <Typography>{visit.doctor_recommendation}</Typography>
           </Paper>
         )}
+        <Accordion elevation={3} sx={{ bgcolor: 'background.paper' }}>
+  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+    <Typography variant="h6">Medications</Typography>
+  </AccordionSummary>
+  <AccordionDetails>
 
+    {/* Newly Prescribed */}
+    <Box sx={{ mb: 2 }}>
+      <Typography variant="subtitle1" color="primary">🆕 Newly Prescribed</Typography>
+      {newlyPrescribed.length > 0 ? (
+        newlyPrescribed.map((med, idx) => (
+          <Box key={idx} sx={{ pl: 2, mt: 1 }}>
+            <Typography><b>Name:</b> {med.medicationname}</Typography>
+            <Typography><b>Dosage:</b> {med.dosage}</Typography>
+            <Typography><b>Frequency:</b> {med.frequency}</Typography>
+            <Typography><b>Start Date:</b> {new Date(med.startdate).toLocaleDateString()}</Typography>
+          </Box>
+        ))
+      ) : (
+        <Typography sx={{ pl: 2, mt: 1, fontStyle: 'italic' }}>
+          No newly prescribed medications for this visit.
+        </Typography>
+      )}
+    </Box>
+
+    {/* Ongoing Medications */}
+    <Box>
+      <Typography variant="subtitle1" color="textSecondary">🕒 Ongoing</Typography>
+      {ongoingMedications.length > 0 ? (
+        ongoingMedications.map((med, idx) => (
+          <Box key={idx} sx={{ pl: 2, mt: 1 }}>
+            <Typography><b>Name:</b> {med.medicationname}</Typography>
+            <Typography><b>Dosage:</b> {med.dosage}</Typography>
+            <Typography><b>Frequency:</b> {med.frequency}</Typography>
+            <Typography><b>Start Date:</b> {new Date(med.startdate).toLocaleDateString()}</Typography>
+          </Box>
+        ))
+      ) : (
+        <Typography sx={{ pl: 2, mt: 1, fontStyle: 'italic' }}>
+          No ongoing medications.
+        </Typography>
+      )}
+    </Box>
+
+  </AccordionDetails>
+</Accordion>
+        {/* Audio Recording */}
         <Paper elevation={3} sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>Ask a Question to the Doctor!</Typography>
           <Stack direction="row" spacing={2} alignItems="center">
@@ -234,13 +248,12 @@ export default function VisitDetail() {
           {recordError && <Alert severity="error" sx={{ mt: 2 }}>{recordError}</Alert>}
         </Paper>
 
-        {/* Reminder before questions list */}
+        {/* Questions */}
         {questions.length > 0 && (
           <Typography variant="subtitle1" sx={{ mt: 2, fontStyle: 'italic' }}>
             Don't forget to follow-up on these questions!
           </Typography>
         )}
-
         {questions.map((q, i) => (
           <Accordion key={i} elevation={1}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -252,20 +265,21 @@ export default function VisitDetail() {
           </Accordion>
         ))}
       </Stack>
+
       <Fab
-    color="secondary"
-    variant="extended"
-    onClick={() => navigate('/ask-ai')}
-    sx={{
-      position: 'fixed',
-      bottom: 24,
-      right: 24,
-      boxShadow: '0px 4px 12px rgba(0,0,0,0.2)',
-      zIndex: theme => theme.zIndex.tooltip
-    }}
-  >
-    <ChatIcon sx={{ mr: 1 }} /> Chat with Agent
-  </Fab>
+        color="secondary"
+        variant="extended"
+        onClick={() => navigate('/ask-ai')}
+        sx={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          boxShadow: '0px 4px 12px rgba(0,0,0,0.2)',
+          zIndex: theme => theme.zIndex.tooltip
+        }}
+      >
+        <ChatIcon sx={{ mr: 1 }} /> Chat with Agent
+      </Fab>
     </Container>
   );
 }
