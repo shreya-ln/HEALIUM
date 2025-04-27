@@ -165,7 +165,17 @@ export default function PatientDashboard() {
         }}
       >
         <Toolbar />
+        
         <Divider />
+        <Box sx={{ p: 2, textAlign: 'center' }}>
+    <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
+      Hi There!
+    </Typography>
+    <Typography variant="body1" sx={{ color: 'text.primary' }}>
+      You have {upcomingVisits.length} upcoming appointment{upcomingVisits.length !== 1 ? 's' : ''}.
+    </Typography>
+  </Box>
+
       </Drawer>
 
       <Box component="main" sx={{ flexGrow: 1, p: 5 }}>
