@@ -13,3 +13,4 @@ openai
 SpeechRecognition
 pytesseract 
 Pillow
+requests

@@ -9,7 +9,6 @@ import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
-
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import List from '@mui/material/List';
@@ -18,35 +17,43 @@ import ListItemText from '@mui/material/ListItemText';
 import CircularProgress from '@mui/material/CircularProgress';
 import Fab from '@mui/material/Fab';
 import ChatIcon from '@mui/icons-material/Chat';
+import Divider from '@mui/material/Divider';
+import Avatar from '@mui/material/Avatar';
+import Drawer from '@mui/material/Drawer';
+
+const drawerWidth = 250;
 
 function DoctorDashboard() {
   const [todayAppointments, setTodayAppointments] = useState([]);
   const [futureAppointments, setFutureAppointments] = useState([]);
-  const [pendingCount, setPendingCount] = useState(0); // 🔥 pendingCount 추가
+  const [pendingCount, setPendingCount] = useState(0);
+  const [doctorProfile, setDoctorProfile] = useState(null);
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAppointments = async () => {
+    const fetchData = async () => {
       if (!user?.user_id) return;
       try {
-        const [todayRes, futureRes, pendingRes] = await Promise.all([
+        const [todayRes, futureRes, pendingRes, profileRes] = await Promise.all([
           axios.get('/today-visits', { headers: { 'Authorization-Id': user.user_id } }),
           axios.get('/future-visits', { headers: { 'Authorization-Id': user.user_id } }),
-          axios.get('/pending-questions-for-doctor', { headers: { Authorization: user.user_id } })
+          axios.get('/pending-questions-for-doctor', { headers: { Authorization: user.user_id } }),
+          axios.get('/doctor-profile', { headers: { Authorization: user.user_id } })
         ]);
 
         setTodayAppointments(todayRes.data || []);
         setFutureAppointments((futureRes.data || []).slice(0, 5));
-        setPendingCount((pendingRes.data || []).length); // 🔥 pendingCount 저장
+        setPendingCount((pendingRes.data || []).length);
+        setDoctorProfile(profileRes.data || {});
       } catch (err) {
-        console.error('Failed to fetch appointments', err);
+        console.error('Failed to fetch dashboard data', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchAppointments();
+    fetchData();
   }, [user]);
 
   const handleSelect = (appointment) => {
@@ -90,6 +97,33 @@ function DoctorDashboard() {
         </Toolbar>
       </AppBar>
 
+      {/* Sidebar */}
+      <Drawer
+        variant="permanent"
+        sx={{
+          width: drawerWidth,
+          flexShrink: 0,
+          '& .MuiDrawer-paper': { width: drawerWidth, boxSizing: 'border-box', bgcolor: '#fafafa', pt: 2 }
+        }}
+      >
+        <Toolbar />
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
+          <Avatar sx={{ width: 80, height: 80, mb: 2 }} />
+          <Typography variant="h6">{doctorProfile?.fullname || 'Dr. Name'}</Typography>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+            {doctorProfile?.specialization || 'Specialization'}
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            {doctorProfile?.hospital || 'Hospital'}
+          </Typography>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+            {doctorProfile?.email || 'email@example.com'}
+          </Typography>
+        </Box>
+        <Divider sx={{ my: 2 }} />
+      </Drawer>
+
+      {/* Main Content */}
       <Box component="main" sx={{ flexGrow: 1, p: 5 }}>
         <Toolbar />
 
@@ -110,7 +144,7 @@ function DoctorDashboard() {
                       >
                         <ListItemText
                           primary={`${appt.patient_name || 'Unknown'} — ${appt.visitdate ? new Date(appt.visitdate).toLocaleString() : 'TBD'}`}
-                          primaryTypographyProps={{ noWrap: true, maxWidth: 250 }}
+                          primaryTypographyProps={{ noWrap: true, maxWidth: 350 }}
                         />
                       </ListItemButton>
                     ))}
@@ -136,7 +170,7 @@ function DoctorDashboard() {
                       >
                         <ListItemText
                           primary={`${appt.patient_name || 'Unknown'} — ${appt.visitdate ? new Date(appt.visitdate).toLocaleDateString() : 'TBD'}`}
-                          primaryTypographyProps={{ noWrap: true, maxWidth: 250 }}
+                          primaryTypographyProps={{ noWrap: true, maxWidth: 350 }}
                         />
                       </ListItemButton>
                     ))}
@@ -146,6 +180,16 @@ function DoctorDashboard() {
             </Card>
           </Box>
         </Box>
+
+        {/* Floating Chat Button */}
+        <Fab
+          color="secondary"
+          variant="extended"
+          onClick={() => navigate('/ask-ai')}
+          sx={{ position: 'fixed', bottom: 24, right: 24, boxShadow: '0px 4px 12px rgba(0,0,0,0.2)', zIndex: theme => theme.zIndex.tooltip }}
+        >
+          <ChatIcon sx={{ mr: 1 }} /> Chat with Agent
+        </Fab>
 
       </Box>
     </Box>

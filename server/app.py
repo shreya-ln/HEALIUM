@@ -17,6 +17,7 @@ from chat_routes import chat_routes  # <-- import
 from visit_routes import visit_routes
 from image_service import upload_image_to_supabase
 import base64
+from wolfram_service import query_wolfram
 
 load_dotenv()
 
@@ -129,7 +130,7 @@ def doctor_profile():
     resp = (
         supabase
         .table('doctors')
-        .select('name, hospital, specialization')
+        .select('name, hospital, specialization, email')
         .eq('id', user_id)
         .single()
         .execute()
@@ -895,6 +896,7 @@ def summarize_audio():
             f
         )
     except Exception as e:
+        print("Upload error:", e)
         return jsonify({"error": f"Storage upload failed: {e}"}), 500
 
 
@@ -1078,6 +1080,58 @@ def add_report():
         print('Error in add_report:', e)
         return jsonify({"error": "Internal Server Error"}), 500
 
+
+
+
+# BMI calculator using WOLFRAM ALPHA API
+@app.route('/calculate-bmi', methods=['POST'])
+def calculate_bmi():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json()
+    weight = data.get('weight')  # in kg
+    height = data.get('height')  # in cm
+
+    if weight is None or height is None:
+        return jsonify({"error": "Missing weight or height"}), 400
+
+    try:
+        question = f"What is the BMI of {weight} kilograms and {height} centimeters?"
+        answer = query_wolfram(question)
+        return jsonify({"bmi_result": answer}), 200
+    except Exception as e:
+        print('Error in calculate_bmi:', e)
+        return jsonify({"error": "Internal Server Error"}), 500
+
+# GET /health-joke
+@app.route('/health-joke', methods=['GET'])
+def health_joke():
+    try:
+        client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        response = client.chat.completions.create(
+            model="gpt-4o",  # You can use gpt-4 or gpt-4o
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a dad joke generator specializing in health and wellness topics. Always respond with a short, funny, light-hearted joke related to health, medicine, or fitness."
+                },
+                {
+                    "role": "user",
+                    "content": "Tell me a random health-related dad joke."
+                }
+            ],
+            temperature=0.8,   # <-- a little more random
+            max_tokens=100
+        )
+        joke = response.choices[0].message.content
+        return jsonify({"joke": joke})
+
+    except Exception as e:
+        print('Error generating health joke:', e)
+        return jsonify({"error": "Failed to generate joke"}), 500
+      
 @app.route('/update-visit/<visit_id>', methods=['PATCH'])
 def update_visit(visit_id):
     user_id = get_current_user()
@@ -1091,7 +1145,7 @@ def update_visit(visit_id):
     try:
         update_fields = {}
 
-        # 필요한 필드만 업데이트
+        
         for field in ['bloodpressure', 'oxygenlevel', 'sugarlevel', 'weight', 'height', 'doctorrecommendation', 'content', 'visitsummaryaudio']:
             if field in data:
                 update_fields[field] = data[field]
