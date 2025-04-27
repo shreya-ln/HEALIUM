@@ -14,6 +14,8 @@ from datetime import datetime
 from audio_service import upload_audio_to_supabase, transcribe_with_whisper
 from chat_routes import chat_routes  # <-- import
 from visit_routes import visit_routes
+from image_service import upload_image_to_supabase
+import base64
 
 load_dotenv()
 
@@ -898,6 +900,97 @@ def summarize_audio():
         "summary": summary,
         "audioUrl": audio_url
     }), 200
+
+# summarize image
+@app.route('/summarize-image', methods=['POST'])
+def summarize_image():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    f = request.files.get('file')
+    if not f:
+        return jsonify({"error": "no file uploaded"}), 400
+
+    # 1. Upload to Supabase Storage
+    try:
+        image_url = upload_image_to_supabase(
+            supabase,
+            os.getenv("SUPABASE_IMAGE_BUCKET", "image-uploads"),
+            f
+        )
+    except Exception as e:
+        print('Image upload error:', e)
+        return jsonify({"error": "Failed to upload image"}), 500
+
+    # 2. OCR and Summarization
+    try:
+        client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+        vision_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a medical assistant. Analyze the uploaded medical report image and generate a short, professional summary of its contents (like imaging results, ECG findings, or written notes)."
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Please summarize the contents of this medical report image concisely:"
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image_url
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=500
+        )
+
+        summary = vision_response.choices[0].message.content
+
+    except Exception as e:
+        print('Image summarization error:', e)
+        return jsonify({"error": f"Failed to summarize image: {e}"}), 500
+
+    return jsonify({
+        "summary": summary,
+        "imageUrl": image_url,
+        "reporttype": "Report"
+    }), 200
+
+
+@app.route('/add-report', methods=['POST'])
+def add_report():
+    try:
+        data = request.get_json()
+        patient_id = data.get('patient_id')  # 👈 get patient_id from frontend
+        report_content = data.get('report_content')
+        report_type = data.get('report_type')
+
+        if not patient_id or not report_content or not report_type:
+            return jsonify({"error": "Missing fields"}), 400
+
+        # Save to Supabase
+        supabase.table('reports').insert({
+            'patient_id': patient_id,
+            'reportcontent': report_content,
+            'reporttype': report_type,
+            'reportdate': datetime.utcnow().isoformat()
+        }).execute()
+
+        return jsonify({"message": "Report added successfully"}), 200
+
+    except Exception as e:
+        print('Error in add_report:', e)
+        return jsonify({"error": "Internal Server Error"}), 500
+
 
 
 if __name__ == '__main__':

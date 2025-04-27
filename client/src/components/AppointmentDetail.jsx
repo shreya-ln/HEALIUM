@@ -25,6 +25,10 @@ function AppointmentDetail() {
   const [recordingAudioUrl, setRecordingAudioUrl] = useState('');
   const [recordingTranscript, setRecordingTranscript] = useState('');
 
+  const [uploadedReportSummary, setUploadedReportSummary] = useState('');
+  const [uploadedReportType, setUploadedReportType] = useState('');
+  const [uploadedReportImageUrl, setUploadedReportImageUrl] = useState('');
+
 
 
   const [formOpen, setFormOpen] = useState(false);
@@ -133,6 +137,32 @@ function AppointmentDetail() {
       alert('Failed to process recording.');
     }
   };
+
+  const handleUploadImage = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+  
+    const formData = new FormData();
+    formData.append('file', file);
+  
+    try {
+      const res = await axios.post('/summarize-image', formData, {
+        headers: {
+          Authorization: user?.user_id,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+  
+      setUploadedReportSummary(res.data.summary);  // summary of the image (e.g., "ECG normal")
+      setUploadedReportType(res.data.reporttype);  // report type (e.g., "ECG Report")
+      setUploadedReportImageUrl(res.data.imageUrl);  // public image URL if you want to show it (optional)
+  
+    } catch (err) {
+      console.error('Failed to process image', err);
+      alert('Failed to upload and summarize image.');
+    }
+  };
+  
   
 
   const handleRecordingButtonClick = () => {
@@ -161,15 +191,32 @@ function AppointmentDetail() {
         }
       });
   
-      // Close form and reset
-      setFormOpen(false);
-      setFormData({ bloodpressure: '', oxygenlevel: '', sugarlevel: '', weight: '', height: '', doctorrecommendation: '' });
-      setRecordingTranscript('');
-      setRecordingAudioUrl('');
-  
-      // Refresh visit
-      const updatedVisitRes = await axios.get(`/visit/${id}`);
-      setVisit(updatedVisitRes.data);
+      // 2) If a report was uploaded, add it to 'reports' table
+    if (uploadedReportSummary && uploadedReportType) {
+      await axios.post('/add-report', {
+        patient_id: visit.patient_id,
+        report_content: uploadedReportSummary,
+        report_type: uploadedReportType
+      }, {
+        headers: {
+          Authorization: user?.user_id,
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+
+    // Reset everything
+    setFormOpen(false);
+    setFormData({ bloodpressure: '', oxygenlevel: '', sugarlevel: '', weight: '', height: '', doctorrecommendation: '' });
+    setRecordingTranscript('');
+    setRecordingAudioUrl('');
+    setUploadedReportSummary('');
+    setUploadedReportType('');
+    setUploadedReportImageUrl('');
+
+    // Refresh visit
+    const updatedVisitRes = await axios.get(`/visit/${id}`);
+    setVisit(updatedVisitRes.data);
   
     } catch (err) {
       console.error('Failed to update visit', err);
@@ -312,6 +359,10 @@ function AppointmentDetail() {
       <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
         <button style={{ padding: '0.5rem 1rem' }} onClick={handleStartConsultation}>Fill Out Today's Data</button>
         <button style={{ padding: '0.5rem 1rem' }}onClick={handleRecordingButtonClick}>{isRecording ? 'Stop Recording' : 'Start Recording'}</button>
+        <label style={{ padding: '0.5rem 1rem', backgroundColor: '#2196f3', color: 'white', borderRadius: '8px', cursor: 'pointer' }}>
+        Upload Report Image
+        <input type="file" accept="image/*" onChange={handleUploadImage} style={{ display: 'none' }} />
+      </label>
       </div>
 
       {/* Display the summarized result */}
@@ -321,6 +372,16 @@ function AppointmentDetail() {
           <p>{recordingSummary}</p>
         </div>
       )}
+
+    {uploadedReportSummary && (
+      <div style={{ marginTop: '2rem', padding: '1rem', border: '2px dashed #1976d2', borderRadius: '12px', backgroundColor: '#f0f8ff' }}>
+      <h2>🧾 Summarized Report</h2>
+      <p><strong>Type:</strong> {uploadedReportType}</p>
+      <p><strong>Summary:</strong> {uploadedReportSummary}</p>
+      {uploadedReportImageUrl && <img src={uploadedReportImageUrl} alt="Uploaded report" style={{ marginTop: '1rem', maxWidth: '100%' }} />}
+      </div>
+    )}
+
 
       {/* Form (addon) */}
       {formOpen && (
