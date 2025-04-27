@@ -58,7 +58,7 @@ def get_future_visits():
     # 6) Enrich each visit record
     enriched = [
         {
-            'visit_id':     v['id'],
+            'id':     v['id'],
             'patient_id':   v['patient_id'],
             'patient_name': name_map.get(v['patient_id'], 'Unknown'),
             'doctor_id':    v['doctor_id'],
@@ -117,7 +117,7 @@ def get_today_visits():
     enriched = []
     for v in today_visits:
         enriched.append({
-            'visit_id':    v['id'],
+            'id':    v['id'],
             'patient_id':  v['patient_id'],
             'patient_name': name_map.get(v['patient_id'], 'Unknown'),
             'doctor_id':   v['doctor_id'],
