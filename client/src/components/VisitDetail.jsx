@@ -16,7 +16,8 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Card
+  Card,
+  Fab
 } from '@mui/material';
 import {
   PlayArrow as PlayArrowIcon,
@@ -29,7 +30,8 @@ import {
   Opacity as OpacityIcon,
   Height as HeightIcon,
   FitnessCenter as FitnessCenterIcon,
-  LocalDrink as LocalDrinkIcon
+  LocalDrink as LocalDrinkIcon,
+  Chat as ChatIcon,
 } from '@mui/icons-material';
 
 export default function VisitDetail() {
@@ -250,6 +252,20 @@ export default function VisitDetail() {
           </Accordion>
         ))}
       </Stack>
+      <Fab
+    color="secondary"
+    variant="extended"
+    onClick={() => navigate('/ask-ai')}
+    sx={{
+      position: 'fixed',
+      bottom: 24,
+      right: 24,
+      boxShadow: '0px 4px 12px rgba(0,0,0,0.2)',
+      zIndex: theme => theme.zIndex.tooltip
+    }}
+  >
+    <ChatIcon sx={{ mr: 1 }} /> Chat with Agent
+  </Fab>
     </Container>
   );
 }

@@ -23,7 +23,7 @@ import ListItemButton from '@mui/material/ListItemButton';
 import Chip from '@mui/material/Chip';
 import Fab from '@mui/material/Fab';
 
-// import PersonIcon from '@mui/icons-material/Person'; 
+// import PersonIcon from '@mui/icons-material/Person';
 // import SettingsIcon from '@mui/icons-material/Settings';
 import Avatar from '@mui/material/Avatar';
 import ChatIcon from '@mui/icons-material/Chat';
@@ -157,7 +157,7 @@ export default function PatientDashboard() {
         }}
       >
         <Toolbar />
-        
+
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
           <Avatar sx={{ width: 80, height: 80, mb: 2 }} />
           <Typography variant="h6" sx={{fontWeight: 'bold'}}>{patientProfile?.name || 'Your Name'}</Typography>
@@ -336,14 +336,15 @@ export default function PatientDashboard() {
           </Box>
 
         {/* Row 3: BMI Calculator + Health Dad Joke */}
+
 <Box sx={{ display: 'flex', gap: 2 }}>
-  
+
   {/* BMI Card */}
   <Box sx={{ flex: '1 1 50%' }}>
     <Card sx={cardStyles('linear-gradient(135deg, #4db6ac 0%, #80cbc4 100%)', 'black')}>
       <CardContent>
         <Typography variant="h6" gutterBottom>BMI Calculator</Typography>
-        
+
         <input
           type="number"
           placeholder="Weight (kg)"
