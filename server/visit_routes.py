@@ -36,8 +36,38 @@ def get_future_visits():
     )
 
     future_visits = resp.data or []
+    if not future_visits:
+        return jsonify([]), 200
 
-    return jsonify(future_visits), 200
+    # 4) Batch-fetch patient names
+    patient_ids = list({v['patient_id'] for v in future_visits})
+    patients_resp = (
+        supabase
+        .table('patients')
+        .select('id, name')
+        .in_('id', patient_ids)
+        .execute()
+    )
+    if not patients_resp.data:
+        abort(500, description="Error fetching patient names")
+    patients = patients_resp.data or []
+
+    # 5) Build lookup map
+    name_map = {p['id']: p['name'] for p in patients}
+
+    # 6) Enrich each visit record
+    enriched = [
+        {
+            'visit_id':     v['id'],
+            'patient_id':   v['patient_id'],
+            'patient_name': name_map.get(v['patient_id'], 'Unknown'),
+            'doctor_id':    v['doctor_id'],
+            'visitdate':   v['visitdate']
+        }
+        for v in future_visits
+    ]
+
+    return jsonify(enriched), 200
 
 @visit_routes.route('/today-visits', methods=['GET'])
 def get_today_visits():
@@ -64,8 +94,37 @@ def get_today_visits():
     )
 
     today_visits = resp.data or []
+    if not today_visits:
+        return jsonify([]), 200
 
-    return jsonify(today_visits), 200
+    # 3. Batch-fetch patient names
+    patient_ids = list({v['patient_id'] for v in today_visits})
+    patients_resp = (
+        supabase
+        .table('patients')
+        .select('id, name')
+        .in_('id', patient_ids)
+        .execute()
+    )
+    if not patients_resp.data:
+        abort(500, description="Error fetching patient names")
+    patients = patients_resp.data or []
+
+    # 4. Build a lookup map: { patient_id: patient_name }
+    name_map = {p['id']: p['name'] for p in patients}
+
+    # 5. Merge names into visit records
+    enriched = []
+    for v in today_visits:
+        enriched.append({
+            'visit_id':    v['id'],
+            'patient_id':  v['patient_id'],
+            'patient_name': name_map.get(v['patient_id'], 'Unknown'),
+            'doctor_id':   v['doctor_id'],
+            'visitdate':  v['visitdate']
+        })
+
+    return jsonify(enriched), 200
 
 
 
