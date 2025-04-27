@@ -28,6 +28,7 @@ import Fab from '@mui/material/Fab';
 import Avatar from '@mui/material/Avatar';
 import ChatIcon from '@mui/icons-material/Chat';
 import MedicationIcon from '@mui/icons-material/Medication';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 import {
   ResponsiveContainer,
@@ -139,10 +140,10 @@ export default function PatientDashboard() {
     <Box sx={{ display: 'flex', backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
       <CssBaseline />
 
-      <AppBar position="fixed" sx={{ zIndex: theme => theme.zIndex.drawer + 1, bgcolor: '#fff', color: 'black' }}>
+      <AppBar position="fixed" sx={{ zIndex: theme => theme.zIndex.drawer + 1, bgcolor: 'linear-gradient(135deg, #009688 30%, #4DB6AC 100%)', color: '#fff' }}>
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>Patient Dashboard</Typography>
-          <Button variant="contained" onClick={() => navigate('/ask-ai')} sx={{ bgcolor: '#1976d2' }}>
+          <Button variant="contained" onClick={() => navigate('/ask-ai')} sx={{ bgcolor: 'purple' }}>
             Ask Our Agent!
           </Button>
         </Toolbar>
@@ -232,8 +233,18 @@ export default function PatientDashboard() {
                       <Line type="monotone" dataKey="diastolic" stroke="#ef5350" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
-                  <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue' }}>
-                    {blood_pressure_info}
+                  <Typography
+                      variant="body2"
+                      sx={{
+                      mt: 1,
+                        fontStyle: 'italic',
+                        color: 'blue',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                  >
+                  <AutoAwesomeIcon sx={{ mr: 1, color: 'red' }} />
+                  {blood_pressure_info}
                   </Typography>
                 </CardContent>
               </Card>
@@ -252,8 +263,18 @@ export default function PatientDashboard() {
                       <Line type="monotone" dataKey="value" stroke="#66bb6a" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
-                  <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue' }}>
-                    {oxygen_level_info}
+                  <Typography
+                      variant="body2"
+                      sx={{
+                      mt: 1,
+                        fontStyle: 'italic',
+                        color: 'blue',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                  >
+                  <AutoAwesomeIcon sx={{ mr: 1, color: 'red' }} />
+                  {oxygen_level_info}
                   </Typography>
                 </CardContent>
               </Card>
@@ -272,8 +293,18 @@ export default function PatientDashboard() {
                       <Line type="monotone" dataKey="value" stroke="#ec407a" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
-                  <Typography variant="h8" sx={{ mt: 1, fontStyle: 'italic', color: 'blue' }}>
-                    {sugar_level_info}
+                  <Typography
+                      variant="body2"
+                      sx={{
+                      mt: 1,
+                        fontStyle: 'italic',
+                        color: 'blue',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                  >
+                  <AutoAwesomeIcon sx={{ mr: 1, color: 'red' }} />
+                  {sugar_level_info}
                   </Typography>
                 </CardContent>
               </Card>
