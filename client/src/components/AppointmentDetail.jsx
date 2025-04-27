@@ -4,13 +4,28 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
+
+
 
 function AppointmentDetail() {
+  const { user } = useAuth();
   const { id } = useParams();
   const [visit, setVisit] = useState(null);
   const [patientSummary, setPatientSummary] = useState(null);
   const [aiSummary, setAiSummary] = useState('');
   const [aiLoading, setAiLoading] = useState(true);
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSummary, setRecordingSummary] = useState('');
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  const [recordingAudioUrl, setRecordingAudioUrl] = useState('');
+  const [recordingTranscript, setRecordingTranscript] = useState('');
+
+
 
   const [formOpen, setFormOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -52,6 +67,82 @@ function AppointmentDetail() {
     setFormOpen(true);
   };
 
+  function getSupportedAudioMime() {
+    const audio = document.createElement('audio');
+    const candidates = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/wav'];
+    for (const mime of candidates) {
+      if (MediaRecorder.isTypeSupported(mime) && audio.canPlayType(mime)) {
+        return mime;
+      }
+    }
+    return '';
+  }
+
+  const startRecording = async () => {
+    const mimeType = getSupportedAudioMime();
+    if (!mimeType) {
+      alert('No supported audio format found.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      recorder.ondataavailable = e => audioChunksRef.current.push(e.data);
+      recorder.onstop = handleUploadAudio;
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to start recording.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
+    setIsRecording(false);
+  };
+
+  const handleUploadAudio = async () => {
+    const mimeType = getSupportedAudioMime();
+    const blob = new Blob(audioChunksRef.current, { type: mimeType });
+    const ext = mimeType.split('/')[1].split(';')[0];
+    const file = new File([blob], `visit_summary.${ext}`, { type: mimeType });
+  
+    const formData = new FormData();
+    formData.append('file', file);
+  
+    try {
+      const res = await axios.post('/summarize-audio', formData, {
+        headers: {
+          Authorization: user?.user_id,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+  
+      setRecordingTranscript(res.data.summary);  // store summary text
+      setRecordingAudioUrl(res.data.audioUrl);    // store uploaded audio URL
+      setRecordingSummary(res.data.summary);   
+  
+    } catch (err) {
+      console.error('Failed to summarize audio', err);
+      alert('Failed to process recording.');
+    }
+  };
+  
+
+  const handleRecordingButtonClick = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
   const handleChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
@@ -59,18 +150,33 @@ function AppointmentDetail() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.patch(`/update-visit/${id}`, formData);
-      // close form and reset
+      await axios.patch(`/update-visit/${id}`, {
+        ...formData,
+        content: recordingTranscript || '',
+        visitsummaryaudio: recordingAudioUrl || ''
+      }, {
+        headers: {
+          Authorization: user?.user_id,
+          'Content-Type': 'application/json'
+        }
+      });
+  
+      // Close form and reset
       setFormOpen(false);
       setFormData({ bloodpressure: '', oxygenlevel: '', sugarlevel: '', weight: '', height: '', doctorrecommendation: '' });
-      // refresh visit data
+      setRecordingTranscript('');
+      setRecordingAudioUrl('');
+  
+      // Refresh visit
       const updatedVisitRes = await axios.get(`/visit/${id}`);
       setVisit(updatedVisitRes.data);
+  
     } catch (err) {
       console.error('Failed to update visit', err);
       alert('Failed to update visit');
     }
   };
+  
 
   if (!visit || !patientSummary) return <p>Loading...</p>;
 
@@ -205,8 +311,16 @@ function AppointmentDetail() {
       {/* Consultation Buttons */}
       <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
         <button style={{ padding: '0.5rem 1rem' }} onClick={handleStartConsultation}>Fill Out Today's Data</button>
-        <button style={{ padding: '0.5rem 1rem' }}>Recording Start</button>
+        <button style={{ padding: '0.5rem 1rem' }}onClick={handleRecordingButtonClick}>{isRecording ? 'Stop Recording' : 'Start Recording'}</button>
       </div>
+
+      {/* Display the summarized result */}
+      {recordingSummary && (
+        <div style={{ marginTop: '2rem', padding: '1rem', border: '2px dashed #4caf50', borderRadius: '12px', backgroundColor: '#f9fff9' }}>
+          <h2>📄 Summarized Visit Notes</h2>
+          <p>{recordingSummary}</p>
+        </div>
+      )}
 
       {/* Form (addon) */}
       {formOpen && (

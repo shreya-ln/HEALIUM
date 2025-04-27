@@ -813,6 +813,59 @@ def create_appointment():
         print('Error in create_appointment:', e)
         return jsonify({'error': 'Internal Server Error'}), 500
 
+# summarize audio
+@app.route('/summarize-audio', methods=['POST'])
+def summarize_audio():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    f = request.files.get('file')
+    if not f:
+        return jsonify({"error": "no file uploaded"}), 400
+
+    # 1. Transcribe
+    f.stream.seek(0)
+    raw = f.read()
+    try:
+        # Upload first (need fresh FileStorage because we just read it)
+        f.stream.seek(0)
+        audio_url = upload_audio_to_supabase(
+            supabase,
+            os.getenv("SUPABASE_AUDIO_BUCKET", "audio-uploads"),
+            f
+        )
+    except Exception as e:
+        return jsonify({"error": f"Storage upload failed: {e}"}), 500
+    
+
+    try:
+        transcript = transcribe_with_whisper(raw, f.filename)
+    except Exception as e:
+        return jsonify({"error": f"Transcription failed: {e}"}), 500
+
+    # 2. Summarize
+    try:
+        client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "Summarize the following medical visit notes in a clear, short paragraph suitable for a patient summary. Keep it easy to understand, concise, and professional."},
+                {"role": "user", "content": transcript}
+            ],
+            temperature=0.5
+        )
+        summary = resp.choices[0].message.content
+    except Exception as e:
+        return jsonify({"error": f"Summarization failed: {e}"}), 500
+
+    return jsonify({
+        "transcript": transcript,
+        "summary": summary,
+        "audioUrl": audio_url
+    }), 200
+
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 4000))
     app.run(host='0.0.0.0', port=port, debug=True)
