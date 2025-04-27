@@ -56,6 +56,10 @@ export default function PatientDashboard() {
       sugar_level: ""
   });
 
+  const [bmiWeight, setBmiWeight] = useState('');
+  const [bmiHeight, setBmiHeight] = useState('');
+  const [bmiResult, setBmiResult] = useState('');
+
   useEffect(() => {
     if (!token) return;
     (async () => {
@@ -96,6 +100,23 @@ export default function PatientDashboard() {
       <Typography color="error">{error || 'No data available'}</Typography>
     </Box>
   );
+
+  
+
+  const handleBmiCalculate = async () => {
+  try {
+    const res = await axios.post('/calculate-bmi', {
+      weight: bmiWeight,
+      height: bmiHeight
+    }, {
+      headers: { Authorization: user?.user_id }
+    });
+    setBmiResult(res.data.bmi_result);
+  } catch (err) {
+    console.error('Failed to calculate BMI', err);
+    alert('Failed to calculate BMI');
+  }
+  };
 
   const {
     medications,
@@ -167,6 +188,8 @@ export default function PatientDashboard() {
               </CardContent>
             </Card>
           </Box>
+
+          
 
           <Box sx={{ flex: '1 1 25%' }}>
             <Card sx={cardStyles('#fff','black')}>
@@ -284,6 +307,43 @@ export default function PatientDashboard() {
             </Card>
           </Box>
         </Box>
+
+        {/* ADD BMI CARD HERE */}
+  <Box sx={{ flex: '1 1 25%' }}>
+    <Card sx={cardStyles('linear-gradient(135deg, #4db6ac 0%, #80cbc4 100%)','black')}>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>BMI Calculator</Typography>
+        
+        <input
+          type="number"
+          placeholder="Weight (kg)"
+          value={bmiWeight}
+          onChange={(e) => setBmiWeight(e.target.value)}
+          style={{ width: '100%', padding: '8px', marginBottom: '1rem', borderRadius: '6px', border: '1px solid #ccc' }}
+        />
+        <input
+          type="number"
+          placeholder="Height (cm)"
+          value={bmiHeight}
+          onChange={(e) => setBmiHeight(e.target.value)}
+          style={{ width: '100%', padding: '8px', marginBottom: '1rem', borderRadius: '6px', border: '1px solid #ccc' }}
+        />
+        <Button
+          variant="contained"
+          onClick={handleBmiCalculate}
+          sx={{ width: '100%', bgcolor: '#00796b' }}
+        >
+          Calculate BMI
+        </Button>
+
+        {bmiResult && (
+          <Typography sx={{ mt: 2, fontStyle: 'italic' }}>
+            {bmiResult}
+          </Typography>
+        )}
+      </CardContent>
+    </Card>
+  </Box>
 
         {/* Floating Chat Button */}
         <Fab

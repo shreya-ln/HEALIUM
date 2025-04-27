@@ -17,6 +17,7 @@ from chat_routes import chat_routes  # <-- import
 from visit_routes import visit_routes
 from image_service import upload_image_to_supabase
 import base64
+from wolfram_service import query_wolfram
 
 load_dotenv()
 
@@ -1072,6 +1073,28 @@ def add_report():
 
     except Exception as e:
         print('Error in add_report:', e)
+        return jsonify({"error": "Internal Server Error"}), 500
+
+# BMI calculator using WOLFRAM ALPHA API
+@app.route('/calculate-bmi', methods=['POST'])
+def calculate_bmi():
+    user_id = get_current_user()
+    if not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json()
+    weight = data.get('weight')  # in kg
+    height = data.get('height')  # in cm
+
+    if weight is None or height is None:
+        return jsonify({"error": "Missing weight or height"}), 400
+
+    try:
+        question = f"What is the BMI of {weight} kilograms and {height} centimeters?"
+        answer = query_wolfram(question)
+        return jsonify({"bmi_result": answer}), 200
+    except Exception as e:
+        print('Error in calculate_bmi:', e)
         return jsonify({"error": "Internal Server Error"}), 500
 
 
