@@ -1,6 +1,7 @@
 #server/app.py
 import os
-import io
+import json
+import re
 from flask import Flask, request, jsonify
 from supabase import create_client, Client
 import openai
@@ -28,6 +29,7 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
+llm = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_current_user():
@@ -411,6 +413,12 @@ def dashboard_data():
         for q in active_qs
     ]
 
+    llm_result = trend_recommendations({
+            "blood_pressure": blood_pressure,
+            "oxygen_level":   oxygen_level,
+            "sugar_level":    sugar_level
+    })
+
     return jsonify({
         "health_summary": latest[0] if latest else {},
         "health_trends": {
@@ -419,7 +427,8 @@ def dashboard_data():
             "sugar_level":    sugar_level
         },
         "medications":        meds,
-        "active_questions":   active_questions
+        "active_questions":   active_questions,
+        "recommendations":    llm_result
     }), 200
 
 @app.route('/get-questions', methods=['GET'])
@@ -900,6 +909,65 @@ def summarize_audio():
         "summary": summary,
         "audioUrl": audio_url
     }), 200
+
+def trend_recommendations(trendData):
+    """
+    Expects JSON body:
+    {
+      "blood_pressure": [ {"date":"2025-01-01","value":120}, ... ],
+      "oxygen_level":   [ {"date":"2025-01-01","value":98},  ... ],
+      "sugar_level":    [ {"date":"2025-01-01","value":90},  ... ]
+    }
+    Returns:
+    {
+      "blood_pressure": "...",
+      "oxygen_level":   "...",
+      "sugar_level":    "..."
+    }
+    """
+    # validate presence of keys
+    for key in ("blood_pressure", "oxygen_level", "sugar_level"):
+        if key not in trendData:
+            return jsonify({"error": f"Missing '{key}' array in payload."}), 400
+
+    # build prompt
+    prompt = (
+        "Here are a patient’s health trends for three metrics:\n"
+        f"{json.dumps(trendData)}\n\n"
+        "For each metric—blood_pressure, oxygen_level, sugar_level—"
+        "provide a single-sentence recommendation (max 8 words) that either "
+        "flags an issue or affirms a healthy range. "
+        "Return only a JSON object with keys "
+        "'blood_pressure_info', 'oxygen_level_info', and 'sugar_level_info'."
+    )
+
+    # call the LLM
+    resp = llm.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a concise healthcare assistant."},
+            {"role": "user",   "content": prompt}
+        ],
+        temperature=0.5
+    )
+
+    print("LLM Response: ", resp.choices[0].message.content)
+    raw = resp.choices[0].message.content.strip()
+    m = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw)
+    json_str = m.group(1) if m else raw
+    # parse LLM output
+    try:
+        recs = json.loads(json_str)
+    except Exception:
+        # fallback if LLM response isn't valid JSON
+        recs = {
+            "blood_pressure_info": "Unable to generate recommendation.",
+            "oxygen_level_info":   "Unable to generate recommendation.",
+            "sugar_level_info":    "Unable to generate recommendation."
+        }
+
+    print("Final response: ", recs)
+    return recs
 
 # summarize image
 @app.route('/summarize-image', methods=['POST'])
