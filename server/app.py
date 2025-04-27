@@ -129,7 +129,7 @@ def doctor_profile():
     resp = (
         supabase
         .table('doctors')
-        .select('name, hospital, specialization')
+        .select('name, hospital, specialization, email')
         .eq('id', user_id)
         .single()
         .execute()
