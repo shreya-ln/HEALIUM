@@ -6,7 +6,7 @@ import SigninForm from './components/signinForm';
 import Dashboard from './components/Dashboard';
 import PatientDashboard from './components/PatientDashboard';
 import DoctorDashboard from './components/DoctorDashboard';
-import { useEffect } from 'react';
+// import { useEffect } from 'react';
 import AppointmentDetail from './components/AppointmentDetail';
 import SearchPatient from './components/SearchPatient';
 import CreateAppointment from './components/CreateAppointment';

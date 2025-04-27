@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { signup } from '../api/auth';
 import RoleSelector from './RoleSelector';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { /*useNavigate,*/ Link as RouterLink } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -17,7 +17,7 @@ export default function SignupForm() {
   const [form, setForm] = useState({ email: '', password: '', extra_info: {} });
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;

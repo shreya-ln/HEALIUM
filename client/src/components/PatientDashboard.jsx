@@ -9,8 +9,8 @@ import Drawer from '@mui/material/Drawer';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemIcon from '@mui/material/ListItemIcon';
+// import ListItem from '@mui/material/ListItem'; // unused
+// import ListItemIcon from '@mui/material/ListItemIcon'; // unused
 import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -18,13 +18,13 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Divider from '@mui/material/Divider';
 import CircularProgress from '@mui/material/CircularProgress';
-import Grid from '@mui/material/Grid';
+// import Grid from '@mui/material/Grid'; // unused
 import ListItemButton from '@mui/material/ListItemButton';
 import Chip from '@mui/material/Chip';
 import Fab from '@mui/material/Fab';
 
-import PersonIcon from '@mui/icons-material/Person';
-import SettingsIcon from '@mui/icons-material/Settings';
+// import PersonIcon from '@mui/icons-material/Person'; 
+// import SettingsIcon from '@mui/icons-material/Settings';
 import ChatIcon from '@mui/icons-material/Chat';
 import MedicationIcon from '@mui/icons-material/Medication';
 
@@ -92,11 +92,6 @@ export default function PatientDashboard() {
     return { date: bp.date, systolic, diastolic };
   });
 
-  const menuItems = [
-    { text: 'Profile', icon: <PersonIcon />, action: () => navigate('/profile') },
-    { text: 'Settings', icon: <SettingsIcon />, action: () => navigate('/settings') }
-  ];
-
   const cardStyles = (bgColor, textColor = 'white') => ({
     background: bgColor,
     color: textColor,
@@ -131,14 +126,6 @@ export default function PatientDashboard() {
       >
         <Toolbar />
         <Divider />
-        <List>
-          {menuItems.map((item, idx) => (
-            <ListItem button key={idx} onClick={item.action}>
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItem>
-          ))}
-        </List>
       </Drawer>
 
       <Box component="main" sx={{ flexGrow: 1, p: 5 }}>
