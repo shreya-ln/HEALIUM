@@ -1097,6 +1097,32 @@ def calculate_bmi():
         print('Error in calculate_bmi:', e)
         return jsonify({"error": "Internal Server Error"}), 500
 
+# GET /health-joke
+@app.route('/health-joke', methods=['GET'])
+def health_joke():
+    try:
+        client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        response = client.chat.completions.create(
+            model="gpt-4o",  # You can use gpt-4 or gpt-4o
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a dad joke generator specializing in health and wellness topics. Always respond with a short, funny, light-hearted joke related to health, medicine, or fitness."
+                },
+                {
+                    "role": "user",
+                    "content": "Tell me a random health-related dad joke."
+                }
+            ],
+            temperature=0.8,   # <-- a little more random
+            max_tokens=100
+        )
+        joke = response.choices[0].message.content
+        return jsonify({"joke": joke})
+
+    except Exception as e:
+        print('Error generating health joke:', e)
+        return jsonify({"error": "Failed to generate joke"}), 500
 
 
 if __name__ == '__main__':

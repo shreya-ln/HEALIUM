@@ -59,19 +59,22 @@ export default function PatientDashboard() {
   const [bmiWeight, setBmiWeight] = useState('');
   const [bmiHeight, setBmiHeight] = useState('');
   const [bmiResult, setBmiResult] = useState('');
+  const [healthJoke, setHealthJoke] = useState('');
 
   useEffect(() => {
     if (!token) return;
     (async () => {
       try {
-        const [dashRes, visitsRes, upcomingRes] = await Promise.all([
+        const [dashRes, visitsRes, upcomingRes, jokeRes] = await Promise.all([
           axios.get('/dashboard-data', { headers: { Authorization: token }}),
           axios.get('/get-past-visits', { headers: { Authorization: token }}),
-          axios.get('/upcoming-visits', { headers: { Authorization: token }})
+          axios.get('/upcoming-visits', { headers: { Authorization: token }}),
+          axios.get('/health-joke', { headers: { Authorization: token }})
         ]);
         setDashboardData(dashRes.data);
         setRecentVisits(visitsRes.data);
         setUpcomingVisits(upcomingRes.data);
+        setHealthJoke(jokeRes.data.joke);
 
         // const { blood_pressure, oxygen_level, sugar_level } = dashRes.data.health_trends;
         // const recRes = await axios.post(
@@ -308,9 +311,12 @@ export default function PatientDashboard() {
           </Box>
         </Box>
 
-        {/* ADD BMI CARD HERE */}
-  <Box sx={{ flex: '1 1 25%' }}>
-    <Card sx={cardStyles('linear-gradient(135deg, #4db6ac 0%, #80cbc4 100%)','black')}>
+        {/* Row 3: BMI Calculator + Health Dad Joke */}
+<Box sx={{ display: 'flex', gap: 2, mb: 6 }}>
+  
+  {/* BMI Card */}
+  <Box sx={{ flex: '1 1 50%' }}>
+    <Card sx={cardStyles('linear-gradient(135deg, #4db6ac 0%, #80cbc4 100%)', 'black')}>
       <CardContent>
         <Typography variant="h6" gutterBottom>BMI Calculator</Typography>
         
@@ -344,6 +350,31 @@ export default function PatientDashboard() {
       </CardContent>
     </Card>
   </Box>
+
+  {/* Health Dad Joke Card */}
+  <Box sx={{ flex: '1 1 50%' }}>
+    <Card sx={{
+      background: 'linear-gradient(135deg, #f48fb1 0%, #f06292 100%)',
+      color: 'white',
+      borderRadius: 8,
+      p: 3,
+      height: 350,
+      boxShadow: '0px 4px 12px rgba(0,0,0,0.1)',
+      transition: 'transform 0.2s',
+      '&:hover': { transform: 'scale(1.02)' }
+    }}>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>Dad Joke of the Day 😂 about Health ofcourse</Typography>
+        <Typography variant="body1" sx={{ fontStyle: 'italic' }}>
+          {healthJoke || 'Loading joke...'}
+        </Typography>
+      </CardContent>
+    </Card>
+  </Box>
+
+</Box>
+
+
 
         {/* Floating Chat Button */}
         <Fab
