@@ -54,16 +54,31 @@ def chat_with_ai():
     chat_history = chat_resp.data or []
 
     # 3. recent visits
-    visits_resp = (
+        # 3. past visits
+    past_visits_resp = (
         supabase
         .table('visits')
         .select('visitdate, bloodpressure, oxygenlevel, sugarlevel, doctorrecommendation')
         .eq('patient_id', user_id)
+        .lte('visitdate', datetime.utcnow().isoformat())  # visits in the past
         .order('visitdate', desc=True)
         .limit(3)
         .execute()
     )
-    visits = visits_resp.data or []
+    past_visits = past_visits_resp.data or []
+
+    # 4. upcoming visits
+    upcoming_visits_resp = (
+        supabase
+        .table('visits')
+        .select('visitdate, doctorrecommendation')
+        .eq('patient_id', user_id)
+        .gt('visitdate', datetime.utcnow().isoformat())  # visits in the future
+        .order('visitdate')
+        .limit(3)
+        .execute()
+    )
+    upcoming_visits = upcoming_visits_resp.data or []
 
     # 4. OCR reports
     reports_resp = (
@@ -72,7 +87,7 @@ def chat_with_ai():
         .select('reportdate, reportcontent')
         .eq('patient_id', user_id)
         .order('reportdate', desc=True)
-        .limit(3)
+        .limit(7)
         .execute()
     )
     reports = reports_resp.data or []
@@ -93,7 +108,7 @@ Patient Info:
 Recent Health Visits:
 """
 
-    for v in visits:
+    for v in past_visits:
         prompt += f"\n• Visit on {v['visitdate']}:"
         if v.get('bloodpressure'):
             prompt += f" Blood pressure: {v['bloodpressure']}."
@@ -103,6 +118,12 @@ Recent Health Visits:
             prompt += f" Blood sugar: {v['sugarlevel']} mg/dL."
         if v.get('doctorrecommendation'):
             prompt += f" Doctor's recommendation: {v['doctorrecommendation']}."
+
+    prompt += "\n\nUpcoming Appointments:"
+    for v in upcoming_visits:
+        prompt += f"\n• Scheduled for {v['visitdate']}:"
+        if v.get('doctorrecommendation'):
+            prompt += f" Planned: {v['doctorrecommendation']}."
 
     prompt += "\n\nOCR Reports (uploaded health documents):"
     for r in reports:
