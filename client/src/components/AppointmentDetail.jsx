@@ -31,6 +31,7 @@ function AppointmentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [visit, setVisit] = useState(null);
+  const [patient_questions, setPatientQuestions] = useState(null);
   const [patientSummary, setPatientSummary] = useState(null);
   const [aiSummary, setAiSummary] = useState('');
   const [aiLoading, setAiLoading] = useState(true);
@@ -66,6 +67,7 @@ function AppointmentDetail() {
         // 1) Visit data
         const visitRes = await axios.get(`/visit/${id}`);
         setVisit(visitRes.data);
+        setPatientQuestions(visitRes.data.questions)
 
         if (visitRes.data?.patient_id) {
           // 2) DB summary (Authorization 추가)
@@ -472,7 +474,7 @@ function AppointmentDetail() {
           <Box display="flex" alignItems="center" width="100%">
             <Typography variant="h6">Pending Questions</Typography>
             <Chip 
-              label={pending_questions.length} 
+              label={patient_questions.length} 
               size="small" 
               color="secondary" 
               sx={{ ml: 2 }} 
@@ -481,9 +483,9 @@ function AppointmentDetail() {
         </AccordionSummary>
 
         <AccordionDetails>
-          {pending_questions.length > 0 ? (
+          {patient_questions.length > 0 ? (
             <List disablePadding>
-              {pending_questions.map((q, idx) => (
+              {patient_questions.map((q, idx) => (
                 <ListItem key={idx} divider>
                   <Box display="flex" justifyContent="space-between" width="100%">
                     <Typography>{q.questiontext}</Typography>

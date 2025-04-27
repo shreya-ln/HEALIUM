@@ -686,8 +686,9 @@ def get_visit(visit_id):
     q_resp = (
         supabase
         .table('questions')
-        .select('id, questiontext, status, questionaudio')
+        .select('id, questiontext, status, questionaudio, daterecorded')
         .eq('patient_id', visit['patient_id'])
+        .eq('doctor_id', visit['doctor_id'])
         .eq('visit_id', visit['id'])
         .order('daterecorded', desc=True)
         .execute()
@@ -698,7 +699,9 @@ def get_visit(visit_id):
             'id': f"q{q['id']}",
             'transcript': q['questiontext'],
             'status': q['status'],
-            'audioUrl': q['questionaudio']
+            'audioUrl': q['questionaudio'],
+            'daterecorded': q['daterecorded'],
+            'questiontext': q['questiontext'],
         }
         for q in questions
     ]
