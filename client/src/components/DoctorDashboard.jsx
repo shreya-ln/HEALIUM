@@ -144,7 +144,7 @@ function DoctorDashboard() {
                       >
                         <ListItemText
                           primary={`${appt.patient_name || 'Unknown'} — ${appt.visitdate ? new Date(appt.visitdate).toLocaleString() : 'TBD'}`}
-                          primaryTypographyProps={{ noWrap: true, maxWidth: 250 }}
+                          primaryTypographyProps={{ noWrap: true, maxWidth: 350 }}
                         />
                       </ListItemButton>
                     ))}
@@ -170,7 +170,7 @@ function DoctorDashboard() {
                       >
                         <ListItemText
                           primary={`${appt.patient_name || 'Unknown'} — ${appt.visitdate ? new Date(appt.visitdate).toLocaleDateString() : 'TBD'}`}
-                          primaryTypographyProps={{ noWrap: true, maxWidth: 250 }}
+                          primaryTypographyProps={{ noWrap: true, maxWidth: 350 }}
                         />
                       </ListItemButton>
                     ))}
